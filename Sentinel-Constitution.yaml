@@ -1,0 +1,37 @@
+hard_kill:
+  blocked_strings:
+    - sudo
+    - rm -rf
+    - mkfs
+  blocked_paths:
+    - ~/.ssh
+    - ~/.env
+    - /etc/
+  blocked_tools:
+    - python
+    - pip
+    - npm
+
+network_lock:
+  blocked_tools:
+    - curl
+    - wget
+  whitelisted_domains:
+    - api.openclaw.example
+
+execution_mode:
+  lockdown_mode: false
+  allowed_commands:
+    - ls
+    - pwd
+    - whoami
+    - echo
+    - curl https://api.openclaw.example
+
+agent_policies:
+  openclaw_supervisor:
+    danger_level: high
+  openclaw_worker:
+    danger_level: critical
+  openclaw_auditor:
+    danger_level: high
