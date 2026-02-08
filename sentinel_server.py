@@ -78,7 +78,7 @@ async def health_check():
 
 
 @app.post("/audit", response_model=AuditResponse)
-async def audit_command(request: AuditRequest) -> Dict[str, Any]:
+def audit_command(request: AuditRequest) -> Dict[str, Any]:
     """
     Audit a shell command through Sentinel's security layers.
     
@@ -105,7 +105,7 @@ async def audit_command(request: AuditRequest) -> Dict[str, Any]:
 
 
 @app.post("/audit-only")
-async def audit_only(request: AuditRequest) -> Dict[str, Any]:
+def audit_only(request: AuditRequest) -> Dict[str, Any]:
     """
     Audit a command WITHOUT executing it.
     Returns the audit decision only.

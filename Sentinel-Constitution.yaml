@@ -23,6 +23,7 @@ execution_mode:
   lockdown_mode: false
   allowed_commands:
     - ls
+    - eza
     - pwd
     - whoami
     - echo
