@@ -14,6 +14,7 @@ The server runs on http://localhost:8765 by default.
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -100,8 +101,16 @@ def audit_command(request: AuditRequest) -> Dict[str, Any]:
             "returncode": None,
         }
     
-    result = runtime.run_intercepted_command(request.command)
-    return result
+    start_time = time.time()
+    try:
+        result = runtime.run_intercepted_command(request.command)
+        duration_ms = (time.time() - start_time) * 1000
+        print(f"⏱️  Audit completed in {duration_ms:.2f}ms. Decision: {'✅' if result['allowed'] else '❌'} ({result.get('reason', 'No reason provided')})")
+        return result
+    except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        print(f"❌ Audit failed in {duration_ms:.2f}ms: {e}")
+        raise
 
 
 @app.post("/audit-only")

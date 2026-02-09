@@ -3,6 +3,8 @@ hard_kill:
     - sudo
     - rm -rf
     - mkfs
+    - openclaw gateway config
+    - config.patch
   blocked_paths:
     - ~/.ssh
     - ~/.env
@@ -28,6 +30,12 @@ execution_mode:
     - whoami
     - echo
     - curl https://api.openclaw.example
+    - open -a Antigravity
+    - code
+    - mdfind
+    - npm
+    - ng
+    - node
 
 agent_policies:
   openclaw_supervisor:

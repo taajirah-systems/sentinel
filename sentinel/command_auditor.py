@@ -35,6 +35,9 @@ class CommandAuditor:
         if deterministic_decision is not None:
             return deterministic_decision
 
+        if self._is_allowed_in_lockdown(normalized_command):
+            return AuditDecision(allowed=True, risk_score=0, reason="Command explicitly allowed by policy.")
+
         if self.llm_auditor is None:
             return AuditDecision.reject("LLM auditor unavailable; fail-closed policy applied.", risk_score=9)
 

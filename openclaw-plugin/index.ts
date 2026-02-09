@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 // Sentinel OpenClaw Plugin
 // Calls the Python Sentinel server for full ADK/LLM semantic analysis
 
-const SENTINEL_SERVER_URL = process.env.SENTINEL_SERVER_URL || "http://localhost:8765";
+const SENTINEL_SERVER_URL = process.env.SENTINEL_SERVER_URL || "http://127.0.0.1:8765";
 
 interface AuditResult {
   allowed: boolean;
