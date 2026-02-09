@@ -23,6 +23,19 @@ Sentinel solves this with a **two-layer security model**.
 
 ---
 
+## Brains Behind the Security: Google ADK
+
+Sentinel isn't just a set of rules; it's an intelligent gateway powered by the **Google Agent Development Kit (ADK)**. 
+
+By leveraging **Gemini 3 Pro** as its semantic core, Sentinel can:
+- **Understand Intent**: Distinguish between helpful commands and malicious obfuscation.
+- **Enterprise-Grade Reasoning**: Apply sophisticated logic to every command before it reaches your shell.
+- **Fail-Safe Privacy**: Ensure that sensitive data remains protected by an industry-leading AI security layer.
+
+Because it's built on Google's world-class AI infrastructure, Sentinel provides a level of security that standard pattern-matching tools simply can't match.
+
+---
+
 ## Architecture
 
 ```
