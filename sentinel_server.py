@@ -17,7 +17,7 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -30,11 +30,26 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+def _parse_allowed_origins() -> list[str]:
+    raw = os.getenv("SENTINEL_ALLOWED_ORIGINS", "http://localhost,http://127.0.0.1")
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return origins or ["http://localhost", "http://127.0.0.1"]
+
+
+def _requires_auth() -> bool:
+    return os.getenv("SENTINEL_DISABLE_AUTH", "false").strip().lower() not in {"1", "true", "yes"}
+
+
+def _get_auth_token() -> Optional[str]:
+    token = os.getenv("SENTINEL_AUTH_TOKEN", "").strip()
+    return token or None
+
 # Allow CORS for local development (OpenClaw plugin calls from localhost)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_parse_allowed_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -58,6 +73,18 @@ class AuditResponse(BaseModel):
     returncode: Optional[int] = None
 
 
+def _verify_auth(x_sentinel_token: Optional[str]) -> None:
+    if not _requires_auth():
+        return
+
+    expected_token = _get_auth_token()
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="Sentinel auth token is not configured")
+
+    if x_sentinel_token != expected_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize Sentinel runtime on server startup."""
@@ -79,7 +106,7 @@ async def health_check():
 
 
 @app.post("/audit", response_model=AuditResponse)
-def audit_command(request: AuditRequest) -> Dict[str, Any]:
+def audit_command(request: AuditRequest, x_sentinel_token: Optional[str] = Header(default=None)) -> Dict[str, Any]:
     """
     Audit a shell command through Sentinel's security layers.
     
@@ -90,6 +117,8 @@ def audit_command(request: AuditRequest) -> Dict[str, Any]:
     """
     if runtime is None:
         raise HTTPException(status_code=503, detail="Sentinel runtime not initialized")
+
+    _verify_auth(x_sentinel_token)
     
     if not request.command or not request.command.strip():
         return {
@@ -114,13 +143,15 @@ def audit_command(request: AuditRequest) -> Dict[str, Any]:
 
 
 @app.post("/audit-only")
-def audit_only(request: AuditRequest) -> Dict[str, Any]:
+def audit_only(request: AuditRequest, x_sentinel_token: Optional[str] = Header(default=None)) -> Dict[str, Any]:
     """
     Audit a command WITHOUT executing it.
     Returns the audit decision only.
     """
     if runtime is None:
         raise HTTPException(status_code=503, detail="Sentinel runtime not initialized")
+
+    _verify_auth(x_sentinel_token)
     
     # Use the command auditor directly for audit-only
     decision = runtime.command_auditor.audit(request.command)
@@ -131,5 +162,6 @@ if __name__ == "__main__":
     import uvicorn
     
     port = int(os.getenv("SENTINEL_PORT", "8765"))
-    print(f"🛡️  Starting Sentinel Security Gateway on http://localhost:{port}")
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    host = os.getenv("SENTINEL_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    print(f"🛡️  Starting Sentinel Security Gateway on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="info")

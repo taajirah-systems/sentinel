@@ -4,6 +4,7 @@ import { Type } from "@sinclair/typebox";
 // Calls the Python Sentinel server for full ADK/LLM semantic analysis
 
 const SENTINEL_SERVER_URL = process.env.SENTINEL_SERVER_URL || "http://127.0.0.1:8765";
+const SENTINEL_AUTH_TOKEN = process.env.SENTINEL_AUTH_TOKEN || "";
 
 interface AuditResult {
   allowed: boolean;
@@ -18,7 +19,10 @@ async function auditCommand(command: string): Promise<AuditResult> {
   try {
     const response = await fetch(`${SENTINEL_SERVER_URL}/audit`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(SENTINEL_AUTH_TOKEN ? { "X-Sentinel-Token": SENTINEL_AUTH_TOKEN } : {}),
+      },
       body: JSON.stringify({ command }),
     });
 

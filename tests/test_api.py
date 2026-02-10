@@ -6,6 +6,7 @@ Run with: pytest tests/test_api.py -v
 """
 
 import json
+import os
 import pytest
 from fastapi.testclient import TestClient
 
@@ -16,9 +17,14 @@ from sentinel_server import app, startup_event
 import asyncio
 
 
+AUTH_HEADER = {"X-Sentinel-Token": "test-token"}
+
+
 @pytest.fixture(scope="module", autouse=True)
 def initialize_runtime():
     """Initialize Sentinel runtime before running tests."""
+    os.environ["SENTINEL_AUTH_TOKEN"] = "test-token"
+    os.environ["SENTINEL_DISABLE_AUTH"] = "false"
     asyncio.get_event_loop().run_until_complete(startup_event())
     yield
 
@@ -47,7 +53,7 @@ class TestAuditEndpoint:
     
     def test_audit_safe_command_allowed(self):
         """Safe commands (ls, pwd, echo) are approved."""
-        response = client.post("/audit", json={"command": "ls -la"})
+        response = client.post("/audit", json={"command": "ls -la"}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         assert data["allowed"] is True
@@ -55,7 +61,7 @@ class TestAuditEndpoint:
         
     def test_audit_blocked_sudo(self):
         """Commands with 'sudo' are blocked."""
-        response = client.post("/audit", json={"command": "sudo rm -rf /"})
+        response = client.post("/audit", json={"command": "sudo rm -rf /"}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         assert data["allowed"] is False
@@ -63,14 +69,14 @@ class TestAuditEndpoint:
         
     def test_audit_blocked_rm_rf(self):
         """Destructive 'rm -rf' commands are blocked."""
-        response = client.post("/audit", json={"command": "rm -rf /"})
+        response = client.post("/audit", json={"command": "rm -rf /"}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         assert data["allowed"] is False
         
     def test_audit_empty_command_rejected(self):
         """Empty commands are rejected."""
-        response = client.post("/audit", json={"command": ""})
+        response = client.post("/audit", json={"command": ""}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         assert data["allowed"] is False
@@ -78,11 +84,16 @@ class TestAuditEndpoint:
         
     def test_audit_response_structure(self):
         """Response contains all required fields."""
-        response = client.post("/audit", json={"command": "echo test"})
+        response = client.post("/audit", json={"command": "echo test"}, headers=AUTH_HEADER)
         data = response.json()
         assert "allowed" in data
         assert "risk_score" in data
         assert "reason" in data
+
+    def test_audit_requires_token(self):
+        """Audit endpoint rejects missing auth token."""
+        response = client.post("/audit", json={"command": "echo test"})
+        assert response.status_code == 401
 
 
 class TestAuditOnlyEndpoint:
@@ -90,7 +101,7 @@ class TestAuditOnlyEndpoint:
     
     def test_audit_only_safe_command(self):
         """Audit-only returns decision without executing."""
-        response = client.post("/audit-only", json={"command": "ls"})
+        response = client.post("/audit-only", json={"command": "ls"}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         assert data["allowed"] is True
@@ -99,7 +110,7 @@ class TestAuditOnlyEndpoint:
         
     def test_audit_only_blocked_command(self):
         """Audit-only correctly blocks dangerous commands."""
-        response = client.post("/audit-only", json={"command": "sudo su"})
+        response = client.post("/audit-only", json={"command": "sudo su"}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         assert data["allowed"] is False
@@ -111,7 +122,7 @@ class TestStressTesting:
     def test_large_payload_handled(self):
         """Large payloads don't crash the server (fail-closed)."""
         large_command = "A" * 100000  # 100KB junk
-        response = client.post("/audit", json={"command": large_command})
+        response = client.post("/audit", json={"command": large_command}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         # Should fail-closed on suspicious large input
@@ -119,12 +130,12 @@ class TestStressTesting:
         
     def test_unicode_payload(self):
         """Unicode payloads are handled gracefully."""
-        response = client.post("/audit", json={"command": "echo 'こんにちは'"})
+        response = client.post("/audit", json={"command": "echo 'こんにちは'"}, headers=AUTH_HEADER)
         assert response.status_code == 200
         
     def test_null_bytes_blocked(self):
         """Commands with null bytes are rejected."""
-        response = client.post("/audit", json={"command": "ls\x00-la"})
+        response = client.post("/audit", json={"command": "ls\x00-la"}, headers=AUTH_HEADER)
         assert response.status_code == 200
         data = response.json()
         # Should block or handle gracefully

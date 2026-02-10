@@ -114,6 +114,16 @@ def test_blocked_tools_rejected() -> None:
         assert "Blocked tool detected" in decision.reason
 
 
+def test_blocked_tools_do_not_match_arguments() -> None:
+    """Blocked tool names in arguments should not be treated as executable."""
+    constitution = {"hard_kill": {"blocked_tools": ["python"]}}
+    auditor = CommandAuditor(constitution, llm_auditor=None)
+
+    for cmd in ["echo python", "printf 'python'", "cat file_python.txt"]:
+        decision = auditor.audit(cmd)
+        assert "Blocked tool detected" not in decision.reason, f"{cmd} should not be blocked as tool execution"
+
+
 def test_non_whitelisted_domain_rejected() -> None:
     """Network commands to non-whitelisted domains are rejected."""
     constitution = {
@@ -186,6 +196,20 @@ def test_backslash_obfuscation_normalized() -> None:
     for cmd in test_cases:
         decision = auditor.audit(cmd)
         assert not decision.allowed, f"Backslash variant should be blocked: {cmd}"
+
+
+def test_hex_and_octal_escapes_normalized() -> None:
+    """Hex/octal escape variants are decoded and blocked."""
+    constitution = {"hard_kill": {"blocked_strings": ["sudo"]}}
+    auditor = CommandAuditor(constitution)
+
+    test_cases = [
+        "\\x73\\x75\\x64\\x6f ls",
+        "$'\\163\\165\\144\\157' ls",
+    ]
+    for cmd in test_cases:
+        decision = auditor.audit(cmd)
+        assert not decision.allowed, f"Escaped variant should be blocked: {cmd}"
 
 
 def test_network_command_without_url_rejected() -> None:
@@ -303,6 +327,22 @@ def test_lockdown_with_full_command_pattern() -> None:
     assert "Lockdown mode" not in decision.reason
 
 
+def test_lockdown_blocks_command_chaining() -> None:
+    """Lockdown allowlist should not permit chained shell control operators."""
+    constitution = {
+        "execution_mode": {
+            "lockdown_mode": True,
+            "allowed_commands": ["echo hello"],
+        }
+    }
+    auditor = CommandAuditor(constitution, llm_auditor=None)
+
+    for cmd in ["echo hello; id", "echo hello && whoami", "echo hello | cat"]:
+        decision = auditor.audit(cmd)
+        assert not decision.allowed, f"{cmd} should be blocked in lockdown mode"
+        assert "Lockdown mode" in decision.reason
+
+
 def test_lockdown_empty_allowlist_blocks_all() -> None:
     """Lockdown with empty allowlist blocks everything."""
     constitution = {
@@ -356,12 +396,14 @@ ALL_TESTS = [
     test_blocked_strings_rejected,
     test_blocked_paths_rejected,
     test_blocked_tools_rejected,
+    test_blocked_tools_do_not_match_arguments,
     test_non_whitelisted_domain_rejected,
     test_base64_shell_pipeline_rejected,
     # Edge cases
     test_empty_command_rejected,
     test_unicode_normalization,
     test_backslash_obfuscation_normalized,
+    test_hex_and_octal_escapes_normalized,
     test_network_command_without_url_rejected,
     test_malformed_url_rejected,
     test_case_insensitive_blocking,
@@ -371,6 +413,7 @@ ALL_TESTS = [
     test_lockdown_mode_allows_listed_commands,
     test_lockdown_mode_disabled_allows_all,
     test_lockdown_with_full_command_pattern,
+    test_lockdown_blocks_command_chaining,
     test_lockdown_empty_allowlist_blocks_all,
     # Config defaults
     test_default_config_applied,

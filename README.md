@@ -80,7 +80,13 @@ Edit `.env` and add your Google API key:
 ```env
 GOOGLE_API_KEY=your_google_api_key_here
 SENTINEL_MODEL=gemini-2.0-flash
+SENTINEL_AUTH_TOKEN=replace_with_long_random_value
+SENTINEL_HOST=127.0.0.1
+SENTINEL_ALLOWED_ORIGINS=http://localhost,http://127.0.0.1
+SENTINEL_EXEC_TIMEOUT_SEC=15
 ```
+
+For OpenClaw plugin calls, set the same `SENTINEL_AUTH_TOKEN` in the plugin environment.
 
 ### 3. Test the Safe Terminal
 
@@ -129,6 +135,13 @@ Use sentinel_exec to run "ls -la"
 Use sentinel_exec to run "sudo rm -rf /"
 → 🛡️ SENTINEL BLOCKED: Blocked token detected: sudo
 ```
+
+### HTTP API Hardening Defaults
+
+- API auth is enabled by default via `X-Sentinel-Token` header.
+- Server binds to `127.0.0.1` by default (`SENTINEL_HOST` override available).
+- CORS defaults to localhost origins (`SENTINEL_ALLOWED_ORIGINS`).
+- Command execution timeout defaults to 15s (`SENTINEL_EXEC_TIMEOUT_SEC`).
 
 ### Python Integration (Standalone)
 

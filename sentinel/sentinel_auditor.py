@@ -88,10 +88,20 @@ class SentinelAuditor:
             api_key = os.getenv('GOOGLE_API_KEY')
             if api_key:
                 client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=self.agent.model if hasattr(self.agent, 'model') else "gemini-2.0-flash",
-                    contents=prompt,
-                )
+                request_kwargs = {
+                    "model": self.agent.model if hasattr(self.agent, 'model') else "gemini-2.0-flash",
+                    "contents": prompt,
+                }
+                try:
+                    request_kwargs["config"] = types.GenerateContentConfig(
+                        system_instruction=SENTINEL_AUDITOR_SYSTEM_INSTRUCTION,
+                    )
+                except Exception:
+                    request_kwargs["contents"] = (
+                        f"{SENTINEL_AUDITOR_SYSTEM_INSTRUCTION}\n\n{prompt}"
+                    )
+
+                response = client.models.generate_content(**request_kwargs)
                 if hasattr(response, 'text'):
                     return response.text
         except Exception:

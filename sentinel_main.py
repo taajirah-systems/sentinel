@@ -28,6 +28,7 @@ DEFAULT_CONSTITUTION_CANDIDATES = (
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 AUDIT_LOG_PATH = PROJECT_ROOT / "logs" / "sentinel_audit.log"
+DEFAULT_EXEC_TIMEOUT_SECONDS = 15.0
 
 
 def _autoload_dotenv() -> None:
@@ -70,10 +71,26 @@ def _build_audit_logger() -> logging.Logger:
     return logger
 
 
-AUDIT_LOGGER = _build_audit_logger()
+_AUDIT_LOGGER: Optional[logging.Logger] = None
+
+
+def _get_audit_logger() -> Optional[logging.Logger]:
+    global _AUDIT_LOGGER
+    if _AUDIT_LOGGER is not None:
+        return _AUDIT_LOGGER
+
+    try:
+        _AUDIT_LOGGER = _build_audit_logger()
+    except Exception:
+        _AUDIT_LOGGER = None
+    return _AUDIT_LOGGER
 
 
 def _log_audit_event(command: str, payload: dict[str, Any]) -> None:
+    logger = _get_audit_logger()
+    if logger is None:
+        return
+
     event = {
         "command": command,
         "allowed": bool(payload.get("allowed", False)),
@@ -82,10 +99,26 @@ def _log_audit_event(command: str, payload: dict[str, Any]) -> None:
         "returncode": payload.get("returncode"),
     }
     try:
-        AUDIT_LOGGER.info(json.dumps(event, ensure_ascii=True))
+        logger.info(json.dumps(event, ensure_ascii=True))
     except Exception:
         # Logging failures must never affect command interception outcomes.
         pass
+
+
+def _parse_execution_timeout(raw_timeout: str | None) -> float:
+    if raw_timeout is None:
+        return DEFAULT_EXEC_TIMEOUT_SECONDS
+
+    try:
+        parsed = float(raw_timeout)
+    except (TypeError, ValueError):
+        return DEFAULT_EXEC_TIMEOUT_SECONDS
+
+    if parsed < 1:
+        return 1.0
+    if parsed > 300:
+        return 300.0
+    return parsed
 
 
 class SentinelRuntime:
@@ -99,6 +132,7 @@ class SentinelRuntime:
 
         self.constitution_path = self._resolve_constitution_path(constitution_path)
         self.constitution = load_constitution(self.constitution_path)
+        self.execution_timeout_seconds = _parse_execution_timeout(os.getenv("SENTINEL_EXEC_TIMEOUT_SEC"))
         self.startup_warning: Optional[str] = None
         try:
             self.sentinel_auditor: Optional[SentinelAuditor] = SentinelAuditor(model=resolved_model)
@@ -135,7 +169,23 @@ class SentinelRuntime:
                 check=False,
                 capture_output=True,
                 text=True,
+                timeout=self.execution_timeout_seconds,
             )
+        except subprocess.TimeoutExpired as exc:
+            failed = AuditDecision.reject(
+                f"Command execution timed out after {self.execution_timeout_seconds:g}s.",
+                risk_score=10,
+            )
+            payload = failed.to_dict()
+            payload.update(
+                {
+                    "returncode": None,
+                    "stdout": exc.stdout or "",
+                    "stderr": exc.stderr or "Execution timeout",
+                }
+            )
+            _log_audit_event(cmd_string, payload)
+            return payload
         except Exception as exc:
             failed = AuditDecision.reject(f"Command execution failed: {exc}", risk_score=10)
             payload = failed.to_dict()

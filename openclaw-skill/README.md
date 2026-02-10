@@ -38,6 +38,7 @@ Create `~/.openclaw/skills/sentinel/.env`:
 ```env
 GOOGLE_API_KEY=your_api_key_here
 SENTINEL_MODEL=gemini-2.0-flash
+SENTINEL_AUTH_TOKEN=replace_with_long_random_value
 ```
 
 ### 2. Customize the constitution

@@ -10,6 +10,8 @@ from urllib.parse import urlparse
 from sentinel.models import AuditDecision
 from sentinel.sentinel_auditor import SentinelAuditor
 
+ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
+
 
 @dataclass(frozen=True)
 class HardKillConfig:
@@ -67,7 +69,7 @@ class CommandAuditor:
         if self._contains_base64_shell_exec(lowered_command):
             return AuditDecision.reject("Obfuscated payload execution pattern detected: base64 to shell.", risk_score=10)
 
-        if self._contains_network_tool(lowered_command):
+        if self._contains_network_tool(command):
             urls = self._extract_urls(command)
             if not urls:
                 return AuditDecision.reject(
@@ -92,6 +94,9 @@ class CommandAuditor:
             return False
 
         normalized_command = command.strip().lower()
+        if self._contains_shell_control(normalized_command):
+            return False
+
         try:
             tokens = shlex.split(command, posix=True)
         except ValueError:
@@ -106,8 +111,12 @@ class CommandAuditor:
                 continue
 
             if " " in allowed_normalized:
-                if normalized_command == allowed_normalized or normalized_command.startswith(allowed_normalized):
+                if normalized_command == allowed_normalized:
                     return True
+                if normalized_command.startswith(allowed_normalized):
+                    suffix = normalized_command[len(allowed_normalized):]
+                    if self._is_safe_lockdown_suffix(suffix):
+                        return True
             elif normalized_command == allowed_normalized or normalized_command.startswith(f"{allowed_normalized} "):
                 return True
 
@@ -117,9 +126,28 @@ class CommandAuditor:
         return False
 
     @staticmethod
+    def _contains_shell_control(command: str) -> bool:
+        if "$(" in command or "\n" in command or "\r" in command:
+            return True
+        return bool(re.search(r"(?:\|\||&&|[;|`<>])", command))
+
+    @staticmethod
+    def _is_safe_lockdown_suffix(suffix: str) -> bool:
+        if not suffix:
+            return True
+
+        stripped = suffix.lstrip()
+        if not stripped:
+            return True
+
+        return not bool(re.match(r"^(?:[;&|`<>]|\$\()", stripped))
+
+    @staticmethod
     def _normalize_command(command: str) -> str:
         normalized = unicodedata.normalize("NFKC", command or "")
         normalized = normalized.replace("\u200b", "")
+        normalized = CommandAuditor._decode_ansi_c_strings(normalized)
+        normalized = CommandAuditor._decode_common_escapes(normalized)
 
         # Join escaped newlines and strip common shell backslash-obfuscation.
         normalized = re.sub(r"\\\r?\n", "", normalized)
@@ -128,31 +156,87 @@ class CommandAuditor:
         normalized = re.sub(r"\s+", " ", normalized)
         return normalized.strip()
 
-    def _contains_network_tool(self, lowered_command: str) -> bool:
+    @staticmethod
+    def _decode_ansi_c_strings(command: str) -> str:
+        def _replace(match: re.Match[str]) -> str:
+            payload = match.group(1)
+            try:
+                return bytes(payload, "utf-8").decode("unicode_escape")
+            except Exception:
+                return payload
+
+        return re.sub(r"\$'([^']*)'", _replace, command)
+
+    @staticmethod
+    def _decode_common_escapes(command: str) -> str:
+        if "\\" not in command:
+            return command
+
+        decoded = re.sub(r"\\x([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), command)
+        decoded = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), decoded)
+        decoded = re.sub(r"\\U([0-9a-fA-F]{8})", lambda m: chr(int(m.group(1), 16)), decoded)
+        decoded = re.sub(r"\\([0-7]{1,3})", lambda m: chr(int(m.group(1), 8)), decoded)
+        return decoded
+
+    def _contains_network_tool(self, command: str) -> bool:
+        executable = self._extract_executable(command)
+        if executable is None:
+            return False
+
         for tool in self.config.blocked_network_tools:
-            if re.search(rf"\b{re.escape(tool.lower())}\b", lowered_command):
+            if executable == tool.lower().strip():
                 return True
         return False
 
     def _match_blocked_tool(self, command: str) -> Optional[str]:
+        candidate = self._extract_executable(command)
+        if candidate is None:
+            return None
+
+        for blocked_tool in self.config.blocked_tools:
+            blocked = blocked_tool.lower().strip()
+            if candidate == blocked:
+                return blocked_tool
+
+            if blocked == "python" and re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", candidate):
+                return blocked_tool
+
+        return None
+
+    def _extract_executable(self, command: str) -> Optional[str]:
         try:
             tokens = shlex.split(command, posix=True)
         except ValueError:
             tokens = command.split()
 
-        for token in tokens:
-            candidate = token.strip().lower()
-            if not candidate:
+        if not tokens:
+            return None
+
+        start_index = 0
+        first_token = tokens[0].strip().lower().rsplit("/", 1)[-1]
+        if first_token == "env":
+            start_index = 1
+            while start_index < len(tokens):
+                token = tokens[start_index].strip()
+                if not token:
+                    start_index += 1
+                    continue
+                if token == "--":
+                    start_index += 1
+                    break
+                if token.startswith("-"):
+                    start_index += 1
+                    continue
+                if ENV_ASSIGNMENT_RE.fullmatch(token):
+                    start_index += 1
+                    continue
+                break
+
+        for token in tokens[start_index:]:
+            stripped = token.strip()
+            if not stripped or ENV_ASSIGNMENT_RE.fullmatch(stripped):
                 continue
-
-            candidate = candidate.rsplit("/", 1)[-1]
-            for blocked_tool in self.config.blocked_tools:
-                blocked = blocked_tool.lower().strip()
-                if candidate == blocked:
-                    return blocked_tool
-
-                if blocked == "python" and re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", candidate):
-                    return blocked_tool
+            return stripped.lower().rsplit("/", 1)[-1]
 
         return None
 
