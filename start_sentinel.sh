@@ -17,6 +17,12 @@ for PORT in 8765 18789; do
   fi
 done
 
+echo "   Aggressively killing any lingering OpenClaw instances..."
+pkill -9 -f "openclaw gateway" || true
+pkill -9 -f "ai.openclaw.gateway" || true
+# Wait a moment for ports to actually free up
+sleep 2
+
 # 3. Start Sentinel Server (Background)
 echo "🧠 Starting Sentinel Brain..."
 source .venv/bin/activate
