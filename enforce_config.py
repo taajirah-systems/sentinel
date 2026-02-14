@@ -74,10 +74,9 @@ def enforce_config():
             "google-antigravity/claude-opus-4-6-thinking"
         ]
         
-        # Default to gemini-3-flash if current is invalid
-        # But allow custom/local models (not starting with google-antigravity)
+        # Default to gemini-3-flash if current is invalid or not an antigravity model
         current_primary = model_config.get("primary", "")
-        if current_primary.startswith("google-antigravity/") and current_primary not in valid_models:
+        if current_primary not in valid_models:
             print("🔄 Switching to gemini-3-flash (default fallback)...")
             model_config["primary"] = "google-antigravity/gemini-3-flash"
             defaults["model"] = model_config

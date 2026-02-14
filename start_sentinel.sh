@@ -48,12 +48,23 @@ sleep 2
 # 5. Start OpenClaw Gateway (Loop for Auto-Restart)
 echo "🦞 Releasing the Lobster..."
 # Load nvm to ensure openclaw is in PATH
+# Load nvm if available, but dont fail if not found
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-nvm use v22.14.0
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    . "$NVM_DIR/nvm.sh"
+    nvm use v22.14.0 || echo "nvm use failed, proceeding with system node"
+else
+    echo "nvm not found, proceeding with system node/openclaw"
+fi
 
 OPENCLAW_PATH=$(which openclaw)
 echo "   OpenClaw Path: $OPENCLAW_PATH"
+
+# Load env vars for OpenClaw
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+  echo "   Loaded .env for OpenClaw"
+fi
 
 while true; do
     openclaw gateway
