@@ -105,10 +105,12 @@ def enforce_config():
             agent_dir = Path.home() / ".openclaw" / "agents" / agent_id / "agent"
             agent_dir.mkdir(parents=True, exist_ok=True)
             identity_file = agent_dir / "IDENTITY.md"
-            if not identity_file.exists():
-                print(f"🆔 Creating identity for {agent_id}...")
-                with open(identity_file, "w") as f:
-                    f.write(prompt)
+            agent_dir = Path.home() / ".openclaw" / "agents" / agent_id / "agent"
+            agent_dir.mkdir(parents=True, exist_ok=True)
+            identity_file = agent_dir / "IDENTITY.md"
+            print(f"🆔 Updating identity for {agent_id}...")
+            with open(identity_file, "w") as f:
+                f.write(prompt)
 
         if "architect" not in agent_ids:
             print("🏗️  Adding Architect agent...")
@@ -167,7 +169,32 @@ def enforce_config():
             config["models"] = models_block
             modified = True
 
-        ensure_identity("sentinel", "You are Sentinel, the security guardian. Your primary role is to audit system state and enforce safety protocols using the 'sentinel' skill.")
+        # Load AIEOS Identity for Sentinel
+        try:
+            aieos_path = Path("/Users/taajirah_systems/sentinel/identity/sentinel.aieos.json")
+            if aieos_path.exists():
+                with open(aieos_path) as f:
+                    aieos = json.load(f)
+                
+                # specific compilation logic
+                directives = "\n".join([f"- {d}" for d in aieos["personality"]["directives"]])
+                traits = ", ".join(aieos["personality"]["traits"])
+                tone = aieos["personality"]["tone"]
+                
+                prompt = (
+                    f"Identity: {aieos['metadata']['name']} ({aieos['metadata']['role']})\n"
+                    f"Traits: {traits}\n"
+                    f"Tone: {tone}\n\n"
+                    f"Directives:\n{directives}\n"
+                )
+                print("🆔 Compiled AIEOS identity for Sentinel.")
+                ensure_identity("sentinel", prompt)
+            else:
+                 print("⚠️ AIEOS file not found, using default identity.")
+                 ensure_identity("sentinel", "You are Sentinel, the security guardian. Your primary role is to audit system state and enforce safety protocols using the 'sentinel' skill.")
+        except Exception as e:
+                print(f"❌ Failed to load AIEOS identity: {e}")
+                ensure_identity("sentinel", "You are Sentinel, the security guardian. Your primary role is to audit system state and enforce safety protocols using the 'sentinel' skill.")
         agents["list"] = agents_list
         config["agents"] = agents
 

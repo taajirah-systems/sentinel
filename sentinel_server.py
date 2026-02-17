@@ -23,11 +23,12 @@ from pydantic import BaseModel
 
 # Import the Sentinel runtime
 from sentinel_main import SentinelRuntime
+from sentinel_approvals import ApprovalManager, PendingRequest
 
 app = FastAPI(
     title="Sentinel Security Gateway",
     description="HTTP API for command auditing with deterministic + LLM semantic analysis",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 
@@ -56,6 +57,7 @@ app.add_middleware(
 
 # Initialize the Sentinel runtime once at startup
 runtime: Optional[SentinelRuntime] = None
+approval_manager = ApprovalManager()
 
 
 class AuditRequest(BaseModel):
@@ -133,6 +135,17 @@ def audit_command(request: AuditRequest, x_sentinel_token: Optional[str] = Heade
     start_time = time.time()
     try:
         result = runtime.run_intercepted_command(request.command)
+        
+        # HITL Hook
+        if result.get("status") == "review_required":
+            req_id = approval_manager.create_request(
+                command=request.command, 
+                rule_name="Policy Review", # We could extract this if we parsed the reason
+                reason=result.get("reason", "Requires approval")
+            )
+            result["reason"] = f"{result.get('reason')} [Request ID: {req_id}]"
+            print(f"⚠️  Review Required. Request ID: {req_id}")
+
         duration_ms = (time.time() - start_time) * 1000
         print(f"⏱️  Audit completed in {duration_ms:.2f}ms. Decision: {'✅' if result['allowed'] else '❌'} ({result.get('reason', 'No reason provided')})")
         return result
@@ -156,6 +169,40 @@ def audit_only(request: AuditRequest, x_sentinel_token: Optional[str] = Header(d
     # Use the command auditor directly for audit-only
     decision = runtime.command_auditor.audit(request.command)
     return decision.to_dict()
+
+
+@app.get("/pending", response_model=Dict[str, PendingRequest])
+def list_pending_requests(x_sentinel_token: Optional[str] = Header(default=None)):
+    """List all pending approval requests."""
+    _verify_auth(x_sentinel_token)
+    return approval_manager.list_pending()
+
+
+@app.post("/approve/{request_id}")
+def approve_request(request_id: str, x_sentinel_token: Optional[str] = Header(default=None)):
+    """Approve and execute a pending request."""
+    _verify_auth(x_sentinel_token)
+    
+    req = approval_manager.get_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    if req.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Request is already {req.status}")
+    
+    print(f"✅ Approving request {request_id}: {req.command}")
+    
+    # Execute with policy bypass
+    try:
+        if runtime is None:
+             raise HTTPException(status_code=503, detail="Sentinel runtime not initialized")
+             
+        result = runtime.run_intercepted_command(req.command, bypass_policy=True)
+        approval_manager.resolve_request(request_id, "approved")
+        return result
+    except Exception as e:
+        print(f"❌ Execution failed for approved request {request_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 from sentinel import CommandAuditor, SentinelAuditor
+from sentinel import CommandAuditor, SentinelAuditor
 from sentinel.models import AuditDecision
+from sentinel_policy import PolicyEnforcer
 
 try:
     import yaml
@@ -143,9 +145,54 @@ class SentinelRuntime:
             self.startup_warning = str(exc)
         self.command_auditor = CommandAuditor(self.constitution, llm_auditor=self.sentinel_auditor)
         self.orchestrator = initialize_adk_environment(self.sentinel_auditor)
+        self.policy_enforcer = PolicyEnforcer()
 
-    def run_intercepted_command(self, cmd_string: str) -> dict[str, Any]:
-        decision = self.command_auditor.audit(cmd_string)
+    def run_intercepted_command(self, cmd_string: str, bypass_policy: bool = False) -> dict[str, Any]:
+        decision = None
+        
+        # 0. Policy Check (ZeroClaw Hardening)
+        if not bypass_policy:
+            policy_result = self.policy_enforcer.evaluate(cmd_string)
+            action = policy_result.get("action", "block")
+            
+            if action == "block":
+                failed = AuditDecision.reject(
+                    f"Policy Violation: {policy_result.get('rule_name', 'Unknown')} - {policy_result.get('reason', 'Blocked by policy')}", 
+                    risk_score=10
+                )
+                payload = failed.to_dict()
+                payload.update({"returncode": None, "stdout": "", "stderr": ""})
+                _log_audit_event(cmd_string, payload)
+                return payload
+
+            if action == "review":
+                # TODO: Integrate with HITL system. For now, we block with a specific message.
+                failed = AuditDecision.reject(
+                    f"Review Required: {policy_result.get('rule_name', 'Unknown')} - {policy_result.get('reason', 'Requires approval')}", 
+                    risk_score=5
+                )
+                payload = failed.to_dict()
+                # Mark it as 'review_required' for the API response if we support it in the future
+                payload["status"] = "review_required" 
+                payload.update({"returncode": None, "stdout": "", "stderr": ""})
+                _log_audit_event(cmd_string, payload)
+                return payload
+
+            if action == "allow":
+                decision = AuditDecision(
+                    allowed=True, 
+                    risk_score=0, 
+                    reason=f"Allowed by policy: {policy_result.get('rule_name', 'Policy Allow')}"
+                )
+                # Fall through to execution logic
+        
+        if decision is None:
+            if bypass_policy:
+                decision = AuditDecision(allowed=True, risk_score=0, reason="User Approved via HITL")
+            else:
+                # 1. Standard Sentinel Audit
+                decision = self.command_auditor.audit(cmd_string)
+        
         payload: dict[str, Any] = decision.to_dict()
 
         if not decision.allowed:
@@ -389,7 +436,7 @@ def run_intercepted_command(cmd_string: str) -> dict[str, Any]:
     global _runtime
     if _runtime is None:
         _runtime = SentinelRuntime()
-    return _runtime.run_intercepted_command(cmd_string)
+    return _runtime.run_intercepted_command(cmd_string, bypass_policy=False)
 
 
 if __name__ == "__main__":
