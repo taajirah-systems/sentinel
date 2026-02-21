@@ -22,9 +22,7 @@ QUOTA_ERRORS = [
 
 # Supported Models in Rotation Order
 MODEL_ROTATION = [
-    "google-antigravity/gemini-3-flash",
-    "google-antigravity/gemini-3-pro-low",
-    "google-antigravity/claude-opus-4-6-thinking",
+    "google-antigravity/gemini-3-flash-preview",
     "ollama/gemma3",
     "ollama/deepseek-v3"
 ]
