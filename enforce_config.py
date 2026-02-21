@@ -146,16 +146,12 @@ def enforce_config():
         defaults = agents.get("defaults", {})
         model_config = defaults.get("model", {})
         
-        # Use gemini-3-flash as primary (higher quota limits than gemini-3-pro-low)
+        # Use gemini-3-flash-preview as primary
         valid_models = [
-            "google-antigravity/gemini-3-flash",
-            "google-antigravity/gemini-3-pro-low", 
-            "google-antigravity/claude-opus-4-6-thinking",
-            "ollama/gemma3",
-            "ollama/deepseek-v3"
+            "google/gemini-3-flash-preview",
+            "ollama/gemma3"
         ]
         
-        # Default to gemini-3-flash if current is invalid or not an antigravity model
         # Ensure all rotation models are registered in agents.defaults.models
         models = defaults.get("models", {})
         rotation_reg_needed = False
@@ -168,11 +164,11 @@ def enforce_config():
             defaults["models"] = models
             modified = True
 
-        # Default to gemini-3-flash only if current is NO model or completely unknown
+        # Default to gemini-3-flash-preview only if current is NO model or completely unknown
         current_primary = model_config.get("primary", "")
         if not current_primary or (current_primary not in valid_models and not any(current_primary.startswith(p) for p in ["morpheus/", "ollama/", "local/"])):
-            print("🔄 Switching to gemini-3-flash (default fallback)...")
-            model_config["primary"] = "google-antigravity/gemini-3-flash"
+            print("🔄 Switching to gemini-3-flash-preview (default fallback)...")
+            model_config["primary"] = "google/gemini-3-flash-preview"
             defaults["model"] = model_config
             modified = True
 
@@ -323,95 +319,6 @@ def enforce_config():
             load_conf["extraDirs"] = extra_dirs
             skills["load"] = load_conf
             config["skills"] = skills
-            modified = True
-
-        # Enforce Voice-Call Plugin (Mock Provider)
-        plugins = config.get("plugins", {}).get("entries", {})
-        if "voice-call" not in plugins:
-            print("📞 Adding Voice-Call plugin (Mock)...")
-            plugins["voice-call"] = {
-                "enabled": True,
-                "config": {
-                    "provider": "mock",
-                    "fromNumber": "+15550001234",
-                    "toNumber": "+15550005678",
-                    "outbound": {
-                        "defaultMode": "notify"
-                    }
-                }
-            }
-            config["plugins"]["entries"] = plugins
-            modified = True
-
-        # Executive Skills & Memory (Mission 011 & 012)
-        if "sag" in plugins:
-            print("🧹 Correcting sag: removing from plugin registry (it is a skill)...")
-            del plugins["sag"]
-            modified = True
-
-        # Enforce Semantic Memory (memory-lancedb - OMNISCIENCE)
-        if "memory-lancedb" not in plugins:
-            print("🧠 Enforcing Semantic Memory (LanceDB)...")
-            plugins["memory-lancedb"] = {
-                "enabled": True,
-                "config": {
-                    "embedding": {
-                        "apiKey": "local-sovereign",
-                        "model": "nomic-embed-text",
-                        "baseUrl": "http://127.0.0.1:11434/v1",
-                        "dimensions": 768
-                    },
-                    "autoCapture": True,
-                    "autoRecall": True
-                }
-            }
-            modified = True
-
-        if modified:
-            config["plugins"]["entries"] = plugins
-
-        # Enforce Memory Slot to LanceDB (OMNISCIENCE)
-        plugins_config = config.get("plugins", {})
-        slots = plugins_config.get("slots", {})
-        if slots.get("memory") != "memory-lancedb":
-            print("🧠 Migrating memory slot to 'memory-lancedb' (OMNISCIENCE)...")
-            slots["memory"] = "memory-lancedb"
-            plugins_config["slots"] = slots
-            config["plugins"] = plugins_config
-            modified = True
-
-        # Clean up invalid 'memory' key if present from previous run
-        agents = config.get("agents", {})
-        defaults = agents.get("defaults", {})
-        if "memory" in defaults:
-            print("🧹 Purging invalid 'memory' key from agents.defaults...")
-            del defaults["memory"]
-            agents["defaults"] = defaults
-            config["agents"] = agents
-            modified = True
-
-        # Enforce Voice-Call Skill
-        skills_entries = config.get("skills", {}).get("entries", {})
-        if "voice-call" not in skills_entries:
-            print("📞 Enabling Voice-Call skill...")
-            skills_entries["voice-call"] = {
-                "enabled": True
-            }
-            config["skills"]["entries"] = skills_entries
-            modified = True
-
-        if "sag" not in skills_entries:
-            print("🗣️  Enabling sag skill...")
-            skills_entries["sag"] = {
-                "enabled": True
-            }
-            config["skills"]["entries"] = skills_entries
-            modified = True
-
-        # Enforce Code Wiki Skill - DISABLED (Potential source of schema errors)
-        if "codewiki" in skills_entries:
-            print("📖 Disabling Code Wiki skill to resolve schema conflicts...")
-            del skills_entries["codewiki"]
             modified = True
 
         # Custom Telegram configuration is managed manually in openclaw.json
