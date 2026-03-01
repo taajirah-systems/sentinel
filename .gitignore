@@ -47,6 +47,7 @@ dist/
 build/
 
 Sentinel-Constitution.yaml
+<<<<<<< HEAD
 # Data and Databases
 data/
 *.db
@@ -97,3 +98,5 @@ nightly_memory_sweep.sh
 data/
 logs/
 *.log
+=======
+>>>>>>> upstream/master
