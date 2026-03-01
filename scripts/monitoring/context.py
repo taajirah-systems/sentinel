@@ -65,7 +65,7 @@ async def monitor():
 
             if sessions:
                 for session in sessions:
-                    total_tokens = session.get("totalTokens", 0)
+                    total_tokens = session.get("totalTokens") or 0
                     # contextTokens can be on the session or fallback to defaults
                     context_limit = session.get("contextTokens") or 200000 
                     

@@ -5,6 +5,19 @@ from pathlib import Path
 
 def enforce_config():
     config_path = Path.home() / ".openclaw" / "openclaw.json"
+    agents_dir = Path.home() / ".openclaw" / "agents"
+    
+    # Forcefully remove agent-level overrides that fight with the global config
+    if agents_dir.exists():
+        for override in ["models.json", "auth-profiles.json", "auth.json"]:
+            # Use rglob to find all instances of these files in agent directories
+            for p in agents_dir.rglob(override):
+                try:
+                    p.unlink()
+                    print(f"🧹 Purged override: {p}")
+                except Exception:
+                    pass
+
     if not config_path.exists():
         print(f"❌ Config file not found: {config_path}")
         return
@@ -20,10 +33,37 @@ def enforce_config():
         modified = False
 
         # Enforce Sentinel Plugin - DISABLED (Sentinel is now a Skill)
-        plugins = config.get("plugins", {}).get("entries", {})
-        if "sentinel" in plugins:
+        plugins = config.get("plugins", {})
+        if "entries" in plugins and "sentinel" in plugins["entries"]:
             print("🛡️  Removing legacy Sentinel plugin entry...")
-            del plugins["sentinel"]
+            del plugins["entries"]["sentinel"]
+            modified = True
+
+        # Enforce WhatsApp Group Policy
+        channels = config.get("channels", {})
+        whatsapp = channels.get("whatsapp", {})
+        allow_from = whatsapp.get("allowFrom", [])
+        modified_wa = False
+        for grp in ["120363409503272487@g.us", "120363424951654295@g.us"]:
+            if grp not in allow_from:
+                allow_from.append(grp)
+                modified_wa = True
+        
+        if modified_wa:
+            print("📱 Adding WhatsApp groups to allowFrom list...")
+            whatsapp["allowFrom"] = allow_from
+
+        groups = whatsapp.get("groups", {})
+        if "*" not in groups or groups["*"].get("requireMention", True) is not False:
+            print("📱 Disabling requireMention for WhatsApp groups...")
+            groups["*"] = groups.get("*", {})
+            groups["*"]["requireMention"] = False
+            modified_wa = True
+            
+        if modified_wa:
+            whatsapp["groups"] = groups
+            channels["whatsapp"] = whatsapp
+            config["channels"] = channels
             modified = True
 
         # Double-check Red Lines (Auto-Enforcement)
@@ -105,15 +145,20 @@ def enforce_config():
             gateway["auth"] = auth_config
             config["gateway"] = gateway
 
-        # Enforce CLI Remote Authentication (so CLI works without password prompt)
+        # Enforce CLI Remote Authentication and Providers
         env_path = Path("/Users/<USER>/sentinel/.env")
         password = None
+        google_api_key = None
         if env_path.exists():
             with open(env_path) as f:
                 for line in f:
                     if line.startswith("OPENCLAW_PASSWORD="):
-                        password = line.split("=", 1)[1].strip()
-                        break
+                        password = line.split("=", 1)[1].strip().strip('\'"')
+                    elif line.startswith("GEMINI_API_KEY="):
+                        google_api_key = line.split("=", 1)[1].strip().strip('\'"')
+                    elif line.startswith("GOOGLE_API_KEY=") and not google_api_key:
+                        google_api_key = line.split("=", 1)[1].strip().strip('\'"')
+
         
         if password:
             # Server-side auth truth
@@ -146,44 +191,134 @@ def enforce_config():
         defaults = agents.get("defaults", {})
         model_config = defaults.get("model", {})
         
-        # Use gemini-3-pro-preview as primary, with tiered fallbacks for rate limits
+        # Use tool-capable models primarily
         valid_models = [
-            "google-gemini-cli/gemini-3-pro-preview",
-            "mor-gateway/kimi-k2.5",
             "google/gemini-2.0-flash",
-            "mor-gateway/glm-4.7-flash",
-            "ollama/gemma3"
+            "google/gemini-2.0-pro-exp-02-05",
+            "google/gemini-1.5-pro",
+            "google/gemini-3-flash-preview",
+            "ollama/qwen2.5:7b",
+            "ollama/gemma3",
+            "ollama/deepseek-r1:14b",
+            "ollama/qwen2.5-coder:14b",
+            "ollama/phi4"
         ]
         
-        # Ensure all rotation models are registered in agents.defaults.models
-        models = defaults.get("models", {})
-        rotation_reg_needed = False
-        for model_name in valid_models:
-            if model_name not in models:
-                models[model_name] = {}
-                rotation_reg_needed = True
+        # Strictly enforce single model registration
+        models = {}
+        for m in valid_models:
+            models[m] = {}
         
-        if rotation_reg_needed:
+        if defaults.get("models") != models:
+            print(f"🧹 Syncing model registry. Native Tools: Qwen, Gemma.")
             defaults["models"] = models
             modified = True
-
-        # Enforce fallback chain
+ 
+        # Use gemini-2.0-flash primarily (4M TPM Backbone)
+        expected_primary = "google/gemini-2.0-flash"
+        current_primary = model_config.get("primary", "")
+        if current_primary != expected_primary:
+            print(f"🔄 Switching back to {expected_primary} (Cloud/Primary)...")
+            model_config["primary"] = expected_primary
+            defaults["model"] = model_config
+            modified = True
+ 
+        # Enforce fallback chain (Local failover if Cloud fails)
         current_fallbacks = model_config.get("fallbacks", [])
-        expected_fallbacks = ["mor-gateway/kimi-k2.5", "google/gemini-2.0-flash", "mor-gateway/glm-4.7-flash"]
+        expected_fallbacks = [
+            "google/gemini-3-flash-preview",
+            "ollama/deepseek-r1:14b",
+            "ollama/qwen2.5:7b"
+        ]
         if current_fallbacks != expected_fallbacks:
-            print("🔄 Syncing fallback model chain...")
+            print(f"🔄 Syncing fallback model chain: {', '.join(expected_fallbacks)}")
             model_config["fallbacks"] = expected_fallbacks
             defaults["model"] = model_config
             modified = True
 
-        # Default to gemini-3-pro-preview only if current is NO model or completely unknown
-        current_primary = model_config.get("primary", "")
-        if not current_primary or (current_primary not in valid_models and not any(current_primary.startswith(p) for p in ["morpheus/", "ollama/", "local/", "mor-gateway/"])):
-            print("🔄 Switching to gemini-3-pro-preview (default fallback)...")
-            model_config["primary"] = "google-gemini-cli/gemini-3-pro-preview"
-            defaults["model"] = model_config
+        # Auth Profile Management: Total OAuth Purge, API Key Preservation
+        if "auth" not in config:
+            config["auth"] = {"profiles": {}}
+        auth_block = config["auth"]
+        if "profiles" not in auth_block:
+            auth_block["profiles"] = {}
+        
+        profiles = auth_block["profiles"]
+        profiles_modified = False
+        
+        # Remove OAuth junk from all profiles
+        for name in list(profiles.keys()):
+            p = profiles[name]
+            # Purge OAuth keys
+            if any(k in p for k in ["accessToken", "refreshToken", "clientId", "clientSecret"]):
+                print(f"🧹 Purging OAuth junk from profile: {name}...")
+                profiles[name] = {"provider": p["provider"], "mode": p["mode"]}
+                profiles_modified = True
+            
+            # Explicitly purge 'apiKey' if it was added by mistake (OpenClaw uses environment for this)
+            if "apiKey" in p:
+                print(f"🧹 Removing invalid 'apiKey' field from profile: {name}...")
+                del p["apiKey"]
+                profiles_modified = True
+        
+        if google_api_key:
+            current_google = profiles.get("google", {})
+            if current_google.get("mode") != "api_key":
+                print("🚀 Synchronizing Google Gemini metadata profile...")
+                profiles["google"] = {
+                    "provider": "google",
+                    "mode": "api_key"
+                }
+                profiles_modified = True
+
+        if profiles_modified:
+            auth_block["profiles"] = profiles
+            config["auth"] = auth_block
             modified = True
 
+        # Configure Ollama Provider (Zero-Rate Limit)
+        models_obj = config.get("models", {})
+        providers = models_obj.get("providers", {})
+        
+        # Ensure it exists and has correct baseUrl
+        if "ollama" not in providers:
+            print("🚀 Registering Local Ollama Provider...")
+            providers["ollama"] = {
+                "baseUrl": "http://127.0.0.1:11434",
+                "models": [
+                    {"id": "deepseek-r1:14b", "name": "DeepSeek R1 (14B)"},
+                    {"id": "qwen2.5-coder:14b", "name": "Qwen 2.5 Coder (14B)"},
+                    {"id": "phi4", "name": "Phi-4"}
+                ]
+            }
+            models_obj["providers"] = providers
+            config["models"] = models_obj
+            modified = True
+        elif "models" not in providers["ollama"] or providers["ollama"].get("baseUrl") != "http://127.0.0.1:11434":
+             print("🚀 Correcting Ollama provider schema...")
+             providers["ollama"]["baseUrl"] = "http://127.0.0.1:11434"
+             providers["ollama"]["models"] = [
+                    {"id": "deepseek-r1:14b", "name": "DeepSeek R1 (14B)"},
+                    {"id": "qwen2.5-coder:14b", "name": "Qwen 2.5 Coder (14B)"},
+                    {"id": "phi4", "name": "Phi-4"}
+             ]
+             models_obj["providers"] = providers
+             modified = True
+
+        # Purely built-in google (API KEY)
+        if "google" in providers:
+            print("🧹 Removing manual Google provider block (relying on built-in)...")
+            providers.pop("google")
+            models_obj["providers"] = providers
+            config["models"] = models_obj
+            modified = True
+                
+        # Clean up root-level 'providers' block if it leaked in
+        if "providers" in config:
+            print("🧹 Removing invalid root-level 'providers' block...")
+            del config["providers"]
+            modified = True
+                
         # Enforce Specialized Agents
         agents_list = agents.get("list", [])
         agent_ids = {a["id"] for a in agents_list}
@@ -270,9 +405,11 @@ def enforce_config():
                 f"## CONSTITUTION: THE 7 RED LINES\n"
                 f"{red_lines}\n\n"
                 f"Operational Directives: You are Tājirah (OpenClaw), the Executive Mobility Partner. "
-                f"Maintain zero-trust security and uphold the 7 Red Lines at all times."
+                f"Maintain zero-trust security and uphold the 7 Red Lines at all times.\n\n"
+                f"CRITICAL AUTONOMY DIRECTIVE:\n"
+                f"You are a fully autonomous agent. DO NOT converse endlessly or ask for permission to use tools unless executing a specific action is blocked by a Red Line. If the user gives you a task, immediately decide on the tools required (e.g., browser, shell, file system) and EXECUTE them. Never say 'Would you like me to...' or 'Should I...'. Just do the work and report the outcome."
             )
-            print("🔱 Compiled TAAJIRAH CORE identity for Architect.")
+            print("🔱 Compiled TAAJIRAH CORE identity for Architect with Autonomy Directive.")
         
         ensure_identity("architect", architect_prompt)
             
@@ -319,19 +456,44 @@ def enforce_config():
         agents["list"] = agents_list
         config["agents"] = agents
 
-        # Enforce Extra Skills Directory
+        # Enforce Sentinel Skill and ClawdCursor Skill
         skills = config.get("skills", {})
         load_conf = skills.get("load", {})
         extra_dirs = load_conf.get("extraDirs", [])
         sentinel_skill_path = str(Path("/Users/<USER>/sentinel/openclaw-skill").resolve())
+        clawd_cursor_path = str(Path("/Users/<USER>/.openclaw/workspace/skills/clawd-cursor").resolve())
         
         if sentinel_skill_path not in extra_dirs:
             print("➕ Registering Sentinel skill directory...")
             extra_dirs.append(sentinel_skill_path)
-            load_conf["extraDirs"] = extra_dirs
-            skills["load"] = load_conf
-            config["skills"] = skills
+            
+        if clawd_cursor_path not in extra_dirs:
+            print("➕ Registering ClawdCursor skill directory...")
+            extra_dirs.append(clawd_cursor_path)
+            
+        load_conf["extraDirs"] = extra_dirs
+        skills["load"] = load_conf
+        config["skills"] = skills
+
+        # Enforce Plugins State
+        plugins = config.get("plugins", {})
+        entries = plugins.get("entries", {})
+        if entries.get("google-gemini-cli-auth", {}).get("enabled") is True:
+            print("🔌 Disabling conflicting google-gemini-cli-auth plugin...")
+            entries["google-gemini-cli-auth"] = {"enabled": False}
+            plugins["entries"] = entries
+            config["plugins"] = plugins
             modified = True
+
+        # Remove legacy/garbage providers but KEEP Ollama
+        for p_name in list(providers.keys()):
+            if p_name not in ["ollama"]:
+                if p_name in ["google", "openai", "anthropic", "morpheus"]:
+                     print(f"🚫 Removing manual {p_name} provider from config...")
+                     providers.pop(p_name)
+                     modified = True
+            
+        modified = True
 
         # Custom Telegram configuration is managed manually in openclaw.json
         pass
@@ -348,9 +510,9 @@ def enforce_config():
         sys.exit(1)
 
     finally:
-        # Always ensure file is read-only
+        # Final Lock (Sovereign Authority) - Read/Write for user only (600)
         if config_path.exists():
-            os.chmod(config_path, 0o444)
+            os.chmod(config_path, 0o600)
 
 if __name__ == "__main__":
     enforce_config()

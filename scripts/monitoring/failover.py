@@ -14,10 +14,11 @@ RESTART_FLAG = Path("/tmp/openclaw_restart_requested")
 
 # Error Patterns to Trigger Failover
 QUOTA_ERRORS = [
-    "429",
-    "RESOURCE_EXHAUSTED",
-    "Quota exceeded", 
-    "token limit reached"
+    '"status": 429',
+    '"code": 429',
+    'RESOURCE_EXHAUSTED',
+    'Quota exceeded', 
+    'token limit reached'
 ]
 
 # Supported Models in Rotation Order
