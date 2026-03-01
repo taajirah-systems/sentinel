@@ -89,7 +89,7 @@ def monitor_loop():
                 f.seek(0, os.SEEK_END)
             elif "EADDRINUSE" in line:
                 log_healing("Port conflict detected. Executing purge sequence...")
-                subprocess.run(["lsof", "-t", "-i:18790"], check=False)
+                subprocess.run(["lsof", "-t", "-i:18789"], check=False)
                 heal_connection() # Trigger restart
                 time.sleep(5)
                 f.seek(0, os.SEEK_END)

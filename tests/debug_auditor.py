@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG)
 print(f"GOOGLE_API_KEY present: {bool(os.getenv('GOOGLE_API_KEY'))}")
 
 try:
-    auditor = SentinelAuditor(model="gemini-2.0-flash")
+    auditor = SentinelAuditor(model="gemini-3-pro-preview")
     print(f"Auditor initialized. Agent: {type(auditor.agent)}")
     print(f"Runner available: {auditor._runner is not None}")
 
@@ -34,7 +34,7 @@ try:
         print("GenAI client initialized.")
         # Try a simple prompt
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3-pro-preview",
             contents="test"
         )
         print(f"GenAI response success: {bool(response.text)}")

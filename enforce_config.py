@@ -80,9 +80,9 @@ def enforce_config():
         
         # Enforce Password Auth and remove invalid bind
         gateway = config.get("gateway", {})
-        if gateway.get("port") != 18790:
-            print("⚓ Rotating Gateway Port to 18790 (Connection Reset)...")
-            gateway["port"] = 18790
+        if gateway.get("port") != 18789:
+            print("⚓ Rotating Gateway Port to 18789 (Connection Reset)...")
+            gateway["port"] = 18789
             modified = True
 
         if "bind" in gateway:
@@ -127,10 +127,10 @@ def enforce_config():
 
             # Client-side (CLI) remote config
             remote = gateway.get("remote", {})
-            if remote.get("password") != password or remote.get("url") != "ws://127.0.0.1:18790":
+            if remote.get("password") != password or remote.get("url") != "ws://127.0.0.1:18789":
                 print("🔑 Synchronizing CLI remote credentials (ws://)...")
                 remote["password"] = password
-                remote["url"] = "ws://127.0.0.1:18790"
+                remote["url"] = "ws://127.0.0.1:18789"
                 gateway["remote"] = remote
                 config["gateway"] = gateway
                 modified = True
@@ -146,9 +146,12 @@ def enforce_config():
         defaults = agents.get("defaults", {})
         model_config = defaults.get("model", {})
         
-        # Use gemini-3-flash-preview as primary
+        # Use gemini-3-pro-preview as primary, with tiered fallbacks for rate limits
         valid_models = [
-            "google/gemini-3-flash-preview",
+            "google-gemini-cli/gemini-3-pro-preview",
+            "mor-gateway/kimi-k2.5",
+            "google/gemini-2.0-flash",
+            "mor-gateway/glm-4.7-flash",
             "ollama/gemma3"
         ]
         
@@ -164,11 +167,20 @@ def enforce_config():
             defaults["models"] = models
             modified = True
 
-        # Default to gemini-3-flash-preview only if current is NO model or completely unknown
+        # Enforce fallback chain
+        current_fallbacks = model_config.get("fallbacks", [])
+        expected_fallbacks = ["mor-gateway/kimi-k2.5", "google/gemini-2.0-flash", "mor-gateway/glm-4.7-flash"]
+        if current_fallbacks != expected_fallbacks:
+            print("🔄 Syncing fallback model chain...")
+            model_config["fallbacks"] = expected_fallbacks
+            defaults["model"] = model_config
+            modified = True
+
+        # Default to gemini-3-pro-preview only if current is NO model or completely unknown
         current_primary = model_config.get("primary", "")
-        if not current_primary or (current_primary not in valid_models and not any(current_primary.startswith(p) for p in ["morpheus/", "ollama/", "local/"])):
-            print("🔄 Switching to gemini-3-flash-preview (default fallback)...")
-            model_config["primary"] = "google/gemini-3-flash-preview"
+        if not current_primary or (current_primary not in valid_models and not any(current_primary.startswith(p) for p in ["morpheus/", "ollama/", "local/", "mor-gateway/"])):
+            print("🔄 Switching to gemini-3-pro-preview (default fallback)...")
+            model_config["primary"] = "google-gemini-cli/gemini-3-pro-preview"
             defaults["model"] = model_config
             modified = True
 

@@ -60,6 +60,24 @@ python -u scripts/monitoring/autonomic.py > /tmp/autonomic_monitor.log 2>&1 &
 MONITOR_HEAL_PID=$!
 echo "   Autonomic Monitor PID: $MONITOR_HEAL_PID"
 
+# 4c. Start ClawdCursor Desktop Agent (Background)
+CLAWD_DIR="$HOME/.openclaw/workspace/skills/clawd-cursor"
+if [ -d "$CLAWD_DIR" ] && [ -f "$CLAWD_DIR/dist/index.js" ]; then
+  echo "🖥️  Starting ClawdCursor Desktop Agent (port 3847)..."
+  # Kill any existing instance
+  lsof -ti :3847 | xargs kill -9 2>/dev/null || true
+  # Start with Gemini as AI backend (OpenAI-compatible endpoint)
+  cd "$CLAWD_DIR" && \
+    AI_API_KEY="$GOOGLE_API_KEY" \
+    OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai" \
+    node dist/index.js start > /tmp/clawd-cursor.log 2>&1 &
+  CLAWD_PID=$!
+  echo "   ClawdCursor PID: $CLAWD_PID"
+  cd - > /dev/null
+else
+  echo "   ⚠️  ClawdCursor not found at $CLAWD_DIR — skipping"
+fi
+
 # Wait for server to be ready (simple sleep for now)
 sleep 2
 

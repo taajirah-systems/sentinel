@@ -22,10 +22,9 @@ QUOTA_ERRORS = [
 
 # Supported Models in Rotation Order
 MODEL_ROTATION = [
-    "google-antigravity/gemini-3-flash-preview",
-    "ollama/gemma3",
-    "ollama/deepseek-v3"
-]
+    "google-gemini-cli/gemini-3-pro-preview",
+    "ollama/gemma3"
+    ]
 
 logging.basicConfig(
     level=logging.INFO,

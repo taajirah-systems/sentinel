@@ -7,7 +7,7 @@ from sentinel_main import SentinelRuntime
 
 
 def main() -> None:
-    model = os.getenv("SENTINEL_MODEL", "gemini-2.0-flash")
+    model = os.getenv("SENTINEL_MODEL", "gemini-3-pro-preview")
     constitution_path = os.getenv("SENTINEL_CONSTITUTION_PATH")
     runtime = SentinelRuntime(constitution_path=constitution_path, model=model)
 

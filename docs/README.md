@@ -79,7 +79,7 @@ Edit `.env` and add your Google API key:
 
 ```env
 GOOGLE_API_KEY=your_google_api_key_here
-SENTINEL_MODEL=gemini-2.0-flash
+SENTINEL_MODEL=gemini-3-pro-preview
 SENTINEL_AUTH_TOKEN=replace_with_long_random_value
 SENTINEL_HOST=127.0.0.1
 SENTINEL_ALLOWED_ORIGINS=http://localhost,http://127.0.0.1

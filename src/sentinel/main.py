@@ -130,7 +130,7 @@ class SentinelRuntime:
             if env_constitution:
                 constitution_path = env_constitution
 
-        resolved_model = (model or os.getenv("SENTINEL_MODEL", "gemini-2.0-flash")).strip() or "gemini-2.0-flash"
+        resolved_model = (model or os.getenv("SENTINEL_MODEL", "gemini-3-pro-preview")).strip() or "gemini-3-pro-preview"
 
         self.constitution_path = self._resolve_constitution_path(constitution_path)
         self.constitution = load_constitution(self.constitution_path)
@@ -452,7 +452,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         default=None,
-        help="Gemini model for the SentinelAuditor (defaults to SENTINEL_MODEL or gemini-2.0-flash).",
+        help="Gemini model for the SentinelAuditor (defaults to SENTINEL_MODEL or gemini-3-pro-preview).",
     )
 
     args = parser.parse_args()

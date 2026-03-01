@@ -57,9 +57,9 @@ def test_vertex_ai():
             credentials=credentials
         )
         
-        print("🚀 Sending test request to gemini-2.0-flash-001...")
+        print("🚀 Sending test request to gemini-3-pro-preview...")
         response = client.models.generate_content(
-            model="gemini-2.0-flash-001",
+            model="gemini-3-pro-preview",
             contents="Say 'Vertex AI is active!'"
         )
         print(f"✨ Response: {response.text}")

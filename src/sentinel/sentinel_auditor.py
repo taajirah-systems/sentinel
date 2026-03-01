@@ -32,7 +32,7 @@ SENTINEL_AUDITOR_SYSTEM_INSTRUCTION = (
 
 
 class SentinelAuditor:
-    def __init__(self, model: str = "gemini-2.0-flash", agent_name: str = "sentinel_auditor") -> None:
+    def __init__(self, model: str = "gemini-3-pro-preview", agent_name: str = "sentinel_auditor") -> None:
         llm_agent_cls = self._resolve_llm_agent_class()
         if llm_agent_cls is None:
             raise RuntimeError(
@@ -176,8 +176,8 @@ class SentinelAuditor:
                     client = genai.Client(**client_kwargs)
                     
                     # Billing Safeguard: Model Lock
-                    # Using gemini-2.0-flash for Vertex AI (cost-efficient, available on project).
-                    target_model = "gemini-2.0-flash" if use_vertex else (self.agent.model if hasattr(self.agent, "model") else "gemini-2.0-flash")
+                    # Using gemini-3-pro-preview for Vertex AI (cost-efficient, available on project).
+                    target_model = "gemini-3-pro-preview" if use_vertex else (self.agent.model if hasattr(self.agent, "model") else "gemini-3-pro-preview")
 
                     request_kwargs = {
                         "model": target_model,
