@@ -34,4 +34,4 @@ The following local configuration maps OpenClaw to the TAAJIRAH CORE boardroom:
 
 **File**: `~/.openclaw/openclaw.json`
 **Key**: `agents.defaults.workspace`
-**Value**: `/Users/<USER>/taajirah_systems/BOARDROOM`
+**Value**: `~/taajirah_systems/BOARDROOM`

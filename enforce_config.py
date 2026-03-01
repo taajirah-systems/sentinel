@@ -146,7 +146,7 @@ def enforce_config():
             config["gateway"] = gateway
 
         # Enforce CLI Remote Authentication and Providers
-        env_path = Path("/Users/<USER>/sentinel/.env")
+        env_path = Path.home() / "sentinel" / ".env"
         password = None
         google_api_key = None
         if env_path.exists():
@@ -325,7 +325,7 @@ def enforce_config():
         
         # Helper to create identity file
         def ensure_identity(agent_id, prompt):
-            workspace_root = Path("/Users/<USER>/taajirah_systems/BOARDROOM")
+            workspace_root = Path.home() / "taajirah_systems" / "BOARDROOM"
             agent_dir = Path.home() / ".openclaw" / "agents" / agent_id / "agent"
             agent_dir.mkdir(parents=True, exist_ok=True)
             identity_file = agent_dir / "IDENTITY.md"
@@ -357,7 +357,7 @@ def enforce_config():
             modified = True
         
         # TAAJIRAH CORE: Load Sovereign Context for Architect
-        boardroom_path = Path("/Users/<USER>/taajirah_systems/BOARDROOM")
+        boardroom_path = Path.home() / "taajirah_systems" / "BOARDROOM"
         architect_prompt = "You are the System Architect."
         if boardroom_path.exists():
             soul_path = boardroom_path / "SOUL.md"
@@ -429,7 +429,7 @@ def enforce_config():
         
         # Load AIEOS Identity for Sentinel
         try:
-            aieos_path = Path("/Users/<USER>/sentinel/identity/sentinel.aieos.json")
+            aieos_path = Path.home() / "sentinel" / "identity" / "sentinel.aieos.json"
             if aieos_path.exists():
                 with open(aieos_path) as f:
                     aieos = json.load(f)
@@ -460,8 +460,8 @@ def enforce_config():
         skills = config.get("skills", {})
         load_conf = skills.get("load", {})
         extra_dirs = load_conf.get("extraDirs", [])
-        sentinel_skill_path = str(Path("/Users/<USER>/sentinel/openclaw-skill").resolve())
-        clawd_cursor_path = str(Path("/Users/<USER>/.openclaw/workspace/skills/clawd-cursor").resolve())
+        sentinel_skill_path = str((Path.home() / "sentinel" / "openclaw-skill").resolve())
+        clawd_cursor_path = str((Path.home() / ".openclaw" / "workspace" / "skills" / "clawd-cursor").resolve())
         
         if sentinel_skill_path not in extra_dirs:
             print("➕ Registering Sentinel skill directory...")

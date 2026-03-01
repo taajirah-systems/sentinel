@@ -6,9 +6,9 @@ import re
 from pathlib import Path
 
 # Configuration
-SENTINEL_DIR = Path("/Users/<USER>/sentinel")
+SENTINEL_DIR = Path.home() / "sentinel"
 GATEWAY_LOG = SENTINEL_DIR / "logs" / "openclaw_gateway.log"
-HEALING_LOG = Path("/Users/<USER>/taajirah_systems/JOURNAL/SENTINEL_HEALING.log")
+HEALING_LOG = Path.home() / "taajirah_systems" / "JOURNAL" / "SENTINEL_HEALING.log"
 ENFORCE_SCRIPT = SENTINEL_DIR / "enforce_config.py"
 
 # Healing Registry (Pattern -> Action Description)
