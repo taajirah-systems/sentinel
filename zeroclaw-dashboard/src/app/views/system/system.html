@@ -1,0 +1,63 @@
+<div class="h-full flex flex-col p-8 bg-[#0a0a0a]">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">System Vitals</h1>
+      <p class="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">ZeroClaw OS / Kernel Interface</p>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-1.5 rounded border"
+      [ngClass]="isConnected() ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20'">
+      <div class="w-1.5 h-1.5 rounded-full" [ngClass]="isConnected() ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'">
+      </div>
+      <span class="text-[9px] font-bold uppercase tracking-widest"
+        [ngClass]="isConnected() ? 'text-emerald-400' : 'text-rose-400'">
+        {{ isConnected() ? 'Daemon Online' : 'Daemon Offline' }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Metrics Grid -->
+  <div class="grid grid-cols-6 gap-4 mb-6">
+    @if (loading()) {
+    <div class="col-span-6 text-[10px] text-neutral-600 animate-pulse">Loading metrics...</div>
+    }
+    @for (m of metrics(); track m.label) {
+    <div class="p-4 rounded-xl bg-neutral-900/30 border border-neutral-800">
+      <p class="text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase mb-2">{{ m.label }}</p>
+      <p class="text-sm font-mono text-neutral-100">{{ m.value }}</p>
+    </div>
+    }
+  </div>
+
+  <!-- Process Table -->
+  <div class="flex-1 bg-neutral-900/20 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
+    <div class="grid grid-cols-12 gap-4 px-6 py-3 border-b border-neutral-800 bg-neutral-900/30">
+      <span class="col-span-5 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Process</span>
+      <span class="col-span-2 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">PID</span>
+      <span class="col-span-2 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">CPU %</span>
+      <span class="col-span-2 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Memory</span>
+      <span class="col-span-1 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">State</span>
+    </div>
+    <div class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-neutral-800/40">
+      @if (!processes().length && !loading()) {
+      <div class="flex items-center justify-center h-full text-[11px] text-neutral-600">No processes data — ensure
+        /api/processes is available.</div>
+      }
+      @for (proc of processes(); track proc.pid) {
+      <div class="grid grid-cols-12 gap-4 px-6 py-3 hover:bg-white/[0.02] transition-colors">
+        <span class="col-span-5 text-[11px] font-mono text-neutral-300">{{ proc.name }}</span>
+        <span class="col-span-2 text-[11px] font-mono text-neutral-600">{{ proc.pid }}</span>
+        <!-- CPU with inline bar -->
+        <span class="col-span-2 text-[11px] font-mono flex items-center gap-1.5"
+          [ngClass]="proc.cpu >= 70 ? 'text-rose-400' : proc.cpu >= 40 ? 'text-amber-400' : 'text-emerald-400'">
+          {{ proc.cpu }}%
+          <span class="inline-block h-1 rounded-full bg-current opacity-60 transition-all duration-500"
+            [style.width.px]="Math.min(proc.cpu * 0.4, 24)"></span>
+        </span>
+        <span class="col-span-2 text-[11px] font-mono text-neutral-400">{{ proc.memory }}</span>
+        <span [class]="getStatusColor(proc.status)" class="col-span-1 text-[9px] font-bold uppercase">{{ proc.status
+          }}</span>
+      </div>
+      }
+    </div>
+  </div>
+</div>

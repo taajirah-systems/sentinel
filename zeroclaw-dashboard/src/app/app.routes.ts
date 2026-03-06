@@ -1,0 +1,45 @@
+import { Routes } from '@angular/router';
+import { LogsFeed } from './views/logs-feed/logs-feed';
+import { SystemHealth } from './views/system-health/system-health';
+import { AgentChat } from './views/agent-chat/agent-chat';
+import { Treasury } from './views/treasury/treasury';
+import { Tasks } from './views/tasks/tasks';
+import { Projects } from './views/projects/projects';
+import { Calendar } from './views/calendar/calendar';
+import { Memory } from './views/memory/memory';
+import { Agents } from './views/agents/agents';
+import { Content } from './views/content/content';
+import { Approvals } from './views/approvals/approvals';
+import { Council } from './views/council/council';
+import { Docs } from './views/docs/docs';
+import { People } from './views/people/people';
+import { Office } from './views/office/office';
+import { Team } from './views/team/team';
+import { System } from './views/system/system';
+import { Radar } from './views/radar/radar';
+import { Factory } from './views/factory/factory';
+import { Overview } from './views/overview/overview';
+
+export const routes: Routes = [
+    { path: '', redirectTo: '/overview', pathMatch: 'full' },
+    { path: 'overview', component: Overview },
+    { path: 'tasks', component: Tasks },
+    { path: 'projects', component: Projects },
+    { path: 'calendar', component: Calendar },
+    { path: 'memory', component: Memory },
+    { path: 'logs', component: LogsFeed },
+    { path: 'health', component: SystemHealth },
+    { path: 'chat', component: AgentChat },
+    { path: 'treasury', component: Treasury },
+    { path: 'agents', component: Agents },
+    { path: 'content', component: Content },
+    { path: 'approvals', component: Approvals },
+    { path: 'council', component: Council },
+    { path: 'docs', component: Docs },
+    { path: 'people', component: People },
+    { path: 'office', component: Office },
+    { path: 'team', component: Team },
+    { path: 'system', component: System },
+    { path: 'radar', component: Radar },
+    { path: 'factory', component: Factory },
+];

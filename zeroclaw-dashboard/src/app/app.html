@@ -1,0 +1,17 @@
+<main class="h-screen max-h-screen bg-[#0a0a0a] text-gray-200 font-sans flex overflow-hidden">
+
+  <!-- Left Column: Navigation Sidebar -->
+  <app-sidebar class="flex-shrink-0 w-64 border-r border-[#1f1f1f] bg-[#121212] z-20"></app-sidebar>
+
+  <!-- Middle Column: Main Workspace -->
+  <div class="flex-1 flex flex-col bg-[#0a0a0a] relative min-w-0">
+    <app-topbar></app-topbar>
+    <div class="flex-1 overflow-y-auto relative no-scrollbar">
+      <router-outlet></router-outlet>
+    </div>
+  </div>
+
+  <!-- Right Column: Live Activity Panel -->
+  <app-live-activity class="flex-shrink-0 w-80 border-l border-[#1f1f1f] bg-[#121212] z-20"></app-live-activity>
+
+</main>

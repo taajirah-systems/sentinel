@@ -1,0 +1,58 @@
+<div class="h-full flex flex-col p-8 bg-[#0a0a0a]">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">Sovereign Treasury</h1>
+            <p class="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">BOARDROOM Ledger / ZAR Reserve</p>
+        </div>
+        <button
+            class="px-4 py-2 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold uppercase text-emerald-400 hover:bg-emerald-500/20 transition-colors tracking-widest">
+            Export Ledger
+        </button>
+    </div>
+
+    <!-- Balance Cards -->
+    <div class="grid grid-cols-3 gap-6 mb-8">
+        <div class="p-6 rounded-2xl bg-neutral-900/30 border border-emerald-500/20 relative overflow-hidden">
+            <div
+                class="absolute top-0 right-0 w-32 h-32 rounded-full bg-emerald-500/5 -translate-y-1/2 translate-x-1/2">
+            </div>
+            <p class="text-[9px] font-bold tracking-[0.2em] text-emerald-500/60 uppercase mb-3">Treasury Balance</p>
+            <p class="text-4xl font-light text-emerald-400 font-mono">{{ formatZAR(balance()) }}</p>
+        </div>
+        <div class="p-6 rounded-2xl bg-neutral-900/30 border border-neutral-800">
+            <p class="text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase mb-3">Total Inflow</p>
+            <p class="text-3xl font-light text-neutral-200 font-mono">{{ formatZAR(totalInflow()) }}</p>
+        </div>
+        <div class="p-6 rounded-2xl bg-neutral-900/30 border border-neutral-800">
+            <p class="text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase mb-3">Total Outflow</p>
+            <p class="text-3xl font-light text-rose-400 font-mono">{{ formatZAR(totalOutflow()) }}</p>
+        </div>
+    </div>
+
+    <!-- Ledger Table -->
+    <div class="flex-1 bg-neutral-900/20 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
+        <div class="grid grid-cols-12 gap-4 px-6 py-3 border-b border-neutral-800 bg-neutral-900/30">
+            <span class="col-span-2 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Date</span>
+            <span class="col-span-2 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">TXN ID</span>
+            <span class="col-span-4 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Description</span>
+            <span class="col-span-2 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Entity</span>
+            <span
+                class="col-span-2 text-[9px] font-bold tracking-[0.2em] text-neutral-600 uppercase text-right">Amount</span>
+        </div>
+        <div class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-neutral-800/40">
+            @for (entry of ledger(); track entry.transaction_id) {
+            <div class="grid grid-cols-12 gap-4 px-6 py-3.5 hover:bg-white/[0.02] transition-colors items-center">
+                <span class="col-span-2 text-[10px] font-mono text-neutral-600">{{ formatDate(entry.timestamp) }}</span>
+                <span class="col-span-2 text-[10px] font-mono text-neutral-500">{{ entry.transaction_id }}</span>
+                <span class="col-span-4 text-[11px] text-neutral-300">{{ entry.description }}</span>
+                <span class="col-span-2 text-[10px] text-neutral-500">{{ entry.entity }}</span>
+                <span class="col-span-2 text-[11px] font-mono font-medium text-right"
+                    [ngClass]="entry.type === 'Inflow' ? 'text-emerald-400' : 'text-rose-400'">
+                    {{ entry.type === 'Inflow' ? '+' : '-' }}{{ formatZAR(entry.amount_zar) }}
+                </span>
+            </div>
+            }
+        </div>
+    </div>
+</div>

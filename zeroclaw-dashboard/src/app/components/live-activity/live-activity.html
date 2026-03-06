@@ -1,0 +1,44 @@
+<div
+    class="h-full flex flex-col p-6 space-y-4 shadow-[-4px_0_15px_rgba(0,0,0,0.5)] z-20 overflow-y-auto no-scrollbar relative">
+    <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold text-gray-200 uppercase tracking-widest pl-1">Live Activity</h3>
+        <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+                <span
+                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+        </div>
+    </div>
+
+    @if (zeroClaw.logs().length === 0) {
+    <div class="text-gray-600 font-mono text-xs text-center pt-8">
+        No recent activity
+    </div>
+    }
+
+    <div class="flex flex-col gap-3">
+        @for (log of zeroClaw.logs().slice().reverse(); track $index) {
+        <div
+            class="bg-[#1a1a1a] border border-[#2d2d2d] rounded-xl p-3 shadow-md hover:border-[#3d3d3d] transition-colors relative overflow-hidden group">
+            <!-- Top colored bar indicator -->
+            <div
+                class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity">
+            </div>
+
+            <div class="flex items-center gap-2 mb-2">
+                <!-- Dot indicator -->
+                <div class="h-1.5 w-1.5 rounded-full bg-purple-500"></div>
+                <span class="text-[11px] font-bold text-gray-300">{{ log['source'] || 'Daemon' }}</span>
+                <span class="text-[10px] text-gray-500 font-mono ml-auto">{{ log['timestamp'] | date:'shortTime'
+                    }}</span>
+            </div>
+
+            <!-- Content formatting -->
+            <div class="text-xs text-gray-400 font-mono break-all whitespace-pre-wrap leading-relaxed line-clamp-4">
+                {{ log['message'] || (log | json) }}
+            </div>
+        </div>
+        }
+    </div>
+</div>

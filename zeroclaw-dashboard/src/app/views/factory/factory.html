@@ -1,0 +1,81 @@
+<div class="h-full flex flex-col p-8 bg-[#0a0a0a]">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">Autonomous Factory</h1>
+      <p class="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">Production Pipeline Runner / Micro-SaaS
+        Ops</p>
+    </div>
+    <div class="flex gap-3">
+      <button
+        class="px-4 py-2 rounded bg-neutral-900 border border-neutral-800 text-[10px] font-bold uppercase text-neutral-400 hover:bg-neutral-800 transition-colors tracking-widest">
+        New Pipeline
+      </button>
+      <button
+        class="px-4 py-2 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold uppercase text-emerald-400 hover:bg-emerald-500/20 transition-colors tracking-widest">
+        Run All
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="p-4 rounded-xl bg-neutral-900/30 border border-neutral-800">
+      <p class="text-[9px] text-neutral-600 uppercase tracking-widest mb-1">Active</p>
+      <p class="text-2xl font-light text-emerald-400">{{ active() }}</p>
+    </div>
+    <div class="p-4 rounded-xl bg-neutral-900/30 border border-neutral-800">
+      <p class="text-[9px] text-neutral-600 uppercase tracking-widest mb-1">Completed</p>
+      <p class="text-2xl font-light text-indigo-400">{{ completed() }}</p>
+    </div>
+    <div class="p-4 rounded-xl bg-neutral-900/30 border border-neutral-800">
+      <p class="text-[9px] text-neutral-600 uppercase tracking-widest mb-1">Failed</p>
+      <p class="text-2xl font-light text-rose-400">{{ failed() }}</p>
+    </div>
+    <div class="p-4 rounded-xl bg-neutral-900/30 border border-neutral-800">
+      <p class="text-[9px] text-neutral-600 uppercase tracking-widest mb-1">Total Outputs</p>
+      <p class="text-2xl font-light text-neutral-200">{{ totalOutputs() }}</p>
+    </div>
+  </div>
+
+  <!-- Pipeline List -->
+  <div class="flex-1 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+    @if (loading()) {
+    <div class="text-[11px] text-neutral-600 animate-pulse px-2">Loading pipelines from ZeroClaw...</div>
+    }
+    @if (!pipelines().length && !loading()) {
+    <div class="text-[11px] text-neutral-600 px-2">No pipelines found — check /api/pipelines.</div>
+    }
+    @for (pipeline of pipelines(); track pipeline.name) {
+    <div class="p-5 rounded-xl bg-neutral-900/30 border border-neutral-800 hover:border-neutral-700 transition-all">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <h3 class="text-sm font-medium text-neutral-100 mb-1">{{ pipeline.name }}</h3>
+          <div class="flex items-center gap-3">
+            <span class="text-[10px] text-neutral-500 font-mono">{{ pipeline.stage }}</span>
+            <span class="text-neutral-700">·</span>
+            <span class="text-[10px] text-neutral-500">Agent: <span class="text-neutral-300">{{ pipeline.agent
+                }}</span></span>
+            <span class="text-neutral-700">·</span>
+            <span class="text-[10px] text-neutral-500 font-mono">{{ pipeline.startTime }}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-[9px] text-neutral-600 font-mono">{{ pipeline.outputs }} outputs</span>
+          <span [class]="getStatusClass(pipeline.status)"
+            class="px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-widest">
+            {{ pipeline.status }}
+          </span>
+        </div>
+      </div>
+      <!-- Progress Bar -->
+      <div class="h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+        <div [class]="getProgressClass(pipeline.status)" [style.width.%]="pipeline.progress"
+          class="h-full rounded-full transition-all"></div>
+      </div>
+      <div class="flex items-center justify-between mt-1.5">
+        <span class="text-[9px] text-neutral-700 font-mono">{{ pipeline.progress }}% complete</span>
+      </div>
+    </div>
+    }
+  </div>
+</div>

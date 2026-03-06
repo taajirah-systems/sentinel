@@ -1,0 +1,69 @@
+<div class="h-full flex flex-col bg-[#0a0a0a]">
+    <!-- Header -->
+    <div class="flex items-center gap-4 px-8 py-5 border-b border-neutral-800">
+        <div
+            class="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-base">
+            🤖</div>
+        <div>
+            <h1 class="text-sm font-medium text-neutral-100 tracking-widest uppercase">ZeroClaw Direct</h1>
+            <p class="text-[9px] font-mono text-zinc-500">Autonomous Command Interface / Real-time</p>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span class="text-[9px] font-mono text-emerald-500">ONLINE</span>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="flex-1 overflow-y-auto px-8 py-6 space-y-6 custom-scrollbar">
+        @for (msg of messages(); track msg.timestamp) {
+        <div [class]="msg.role === 'user' ? 'flex flex-row-reverse gap-3' : 'flex gap-3'">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5"
+                [ngClass]="msg.role === 'user' ? 'bg-indigo-500/20 border border-indigo-500/30' : 'bg-emerald-500/10 border border-emerald-500/20'">
+                {{ msg.role === 'user' ? '☰' : '🤖' }}
+            </div>
+            <div class="max-w-xl">
+                <p class="text-[9px] font-mono mb-1.5"
+                    [ngClass]="msg.role === 'user' ? 'text-indigo-400 text-right' : 'text-emerald-400'">
+                    {{ msg.role === 'user' ? 'You' : 'ZeroClaw' }} · {{ formatTime(msg.timestamp) }}
+                </p>
+                <div class="px-4 py-3 rounded-xl text-[12px] leading-relaxed text-neutral-200 whitespace-pre-wrap"
+                    [ngClass]="msg.role === 'user' ? 'bg-indigo-500/10 border border-indigo-500/20 rounded-tr-none' : 'bg-neutral-900/50 border border-neutral-800 rounded-tl-none'">
+                    {{ msg.content }}
+                </div>
+            </div>
+        </div>
+        }
+        @if (isSending()) {
+        <div class="flex gap-3">
+            <div
+                class="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs flex-shrink-0">
+                🤖</div>
+            <div
+                class="px-4 py-3 rounded-xl rounded-tl-none bg-neutral-900/50 border border-neutral-800 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0ms]"></span>
+                <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:300ms]"></span>
+            </div>
+        </div>
+        }
+        <div #messagesEnd></div>
+    </div>
+
+    <!-- Input -->
+    <div class="border-t border-neutral-800 px-8 py-4">
+        <div
+            class="flex items-center gap-3 bg-neutral-900/50 border border-neutral-800 hover:border-neutral-700 focus-within:border-emerald-500/40 rounded-xl px-4 py-3 transition-colors">
+            <textarea [(ngModel)]="input" (keydown)="onKeydown($event)" rows="1"
+                placeholder="Send a command to ZeroClaw..."
+                class="flex-1 bg-transparent text-sm text-neutral-200 placeholder-neutral-600 resize-none outline-none font-mono"
+                [disabled]="isSending()">
+            </textarea>
+            <button (click)="send()" [disabled]="isSending() || !input.trim()"
+                class="px-4 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                Send
+            </button>
+        </div>
+        <p class="text-[9px] text-neutral-700 mt-2 font-mono">Enter to send · Shift+Enter for newline</p>
+    </div>
+</div>

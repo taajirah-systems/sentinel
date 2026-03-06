@@ -1,0 +1,106 @@
+<div class="h-full flex flex-col p-8">
+
+    <!-- Header & Stats Top Row -->
+    <div class="flex items-center justify-between mb-8">
+        <h2 class="text-2xl font-bold text-white tracking-wide">Projects <span
+                class="text-gray-500 font-normal ml-2">Portfolio</span></h2>
+        <div class="flex gap-4">
+            <div class="flex flex-col bg-[#121212] border border-[#1f1f1f] rounded-lg px-4 py-2 min-w-32 shadow-sm">
+                <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Active Projects</span>
+                <span class="text-xl font-bold text-emerald-400">4</span>
+            </div>
+            <div class="flex flex-col bg-[#121212] border border-[#1f1f1f] rounded-lg px-4 py-2 min-w-32 shadow-sm">
+                <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Completed</span>
+                <span class="text-xl font-bold text-gray-200">12</span>
+            </div>
+            <div
+                class="flex flex-col bg-[#121212] border border-[#1f1f1f] rounded-lg px-4 pt-2 pb-1 min-w-40 shadow-sm justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Overall velocity</span>
+                    <span class="text-xs font-bold text-blue-400">82%</span>
+                </div>
+                <div class="w-full h-1.5 bg-[#1f1f1f] rounded-full overflow-hidden mt-2">
+                    <div class="h-full bg-blue-500 w-[82%] rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secondary Actions Row -->
+    <div class="flex items-center justify-between mb-6 pb-4 border-b border-[#1f1f1f]">
+        <div class="flex items-center gap-3">
+            <button
+                class="bg-gray-100 text-gray-900 border border-gray-100 hover:bg-white px-4 py-1.5 rounded-md text-sm font-semibold shadow-[0_0_10px_rgba(255,255,255,0.1)] transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                New Project
+            </button>
+        </div>
+        <div class="flex items-center gap-4">
+            <button class="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z">
+                    </path>
+                </svg>
+                Filter: Active
+                <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Projects Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-4 no-scrollbar">
+        @for (project of projects; track project.id) {
+        <div
+            class="bg-[#121212] border border-[#1f1f1f] hover:border-[#3d3d3d] p-6 rounded-xl shadow-sm transition-all group relative overflow-hidden flex flex-col h-full cursor-pointer">
+            <!-- Top Gradient Bar -->
+            <div
+                class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-emerald-500 opacity-75 group-hover:opacity-100 transition-opacity">
+            </div>
+
+            <div class="flex justify-between items-start mb-4 mt-1">
+                <span class="text-xs font-mono text-gray-500">{{project.id}}</span>
+                <span
+                    class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-[#1a1a1a] text-gray-300 border border-[#2d2d2d]">{{project.status}}</span>
+            </div>
+
+            <h3 class="text-lg font-bold text-gray-100 mb-2">{{project.name}}</h3>
+            <p class="text-sm text-gray-400 mb-6 flex-1 line-clamp-3">{{project.description}}</p>
+
+            <div class="mt-auto">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase">Progress</span>
+                    <span class="text-xs font-bold text-gray-300">{{project.progress}}%</span>
+                </div>
+                <div class="w-full h-2 bg-[#1f1f1f] rounded-full overflow-hidden mb-6">
+                    <div class="h-full bg-blue-500 rounded-full transition-all duration-500"
+                        [style.width]="project.progress + '%'"></div>
+                </div>
+
+                <div class="flex items-center justify-between pt-4 border-t border-[#1f1f1f]">
+                    <div class="flex -space-x-2">
+                        @for (agent of project.agents; track agent) {
+                        <div
+                            class="h-8 w-8 rounded-full bg-gray-800 border-2 border-[#121212] flex items-center justify-center text-xs text-gray-300 font-bold overflow-hidden">
+                            {{agent}}
+                        </div>
+                        }
+                    </div>
+                    <div class="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                        {{project.dueDate}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        }
+    </div>
+</div>

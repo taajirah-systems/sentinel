@@ -1,0 +1,104 @@
+<div class="h-full flex flex-col bg-[#0a0a0a]">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-zinc-800/50">
+        <div>
+            <h1 class="text-2xl font-light tracking-widest text-neutral-100 uppercase">Log Feed</h1>
+            <p class="text-zinc-600 font-mono text-[9px] uppercase tracking-widest mt-0.5">
+                Live Daemon Stream · {{ logCounts().total }} events · {{ logCounts().errors }} errors · {{
+                logCounts().warnings }} warnings
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Auto-scroll toggle -->
+            <button (click)="autoScroll.set(!autoScroll())"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded border text-[9px] font-bold uppercase tracking-widest transition-all"
+                [ngClass]="autoScroll() ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-zinc-800/30 border-zinc-700 text-zinc-500'">
+                <span class="w-1.5 h-1.5 rounded-full"
+                    [ngClass]="autoScroll() ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'"></span>
+                Auto-scroll
+            </button>
+            <!-- Live indicator -->
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded border bg-blue-500/10 border-blue-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <span class="text-[9px] font-bold uppercase tracking-widest text-blue-400">Live</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="flex items-center gap-3 px-6 py-3 border-b border-zinc-800/30">
+        <!-- Search -->
+        <div
+            class="flex items-center gap-2 flex-1 max-w-xs bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5">
+            <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+            </svg>
+            <input type="text" placeholder="Search logs..." [(ngModel)]="searchQuery"
+                [ngModelOptions]="{standalone: true}" (input)="searchQuery.set($any($event.target).value)"
+                class="bg-transparent text-[11px] font-mono text-zinc-300 placeholder-zinc-700 outline-none flex-1 w-full" />
+            @if (searchQuery()) {
+            <button (click)="clearSearch()" class="text-zinc-600 hover:text-zinc-400 text-xs">✕</button>
+            }
+        </div>
+
+        <!-- Level filters -->
+        <div class="flex items-center gap-1.5">
+            @for (f of filters; track f.value) {
+            <button (click)="setFilter(f.value)"
+                class="px-2.5 py-1 rounded border text-[9px] font-bold uppercase tracking-widest transition-all"
+                [ngClass]="activeFilter() === f.value
+            ? f.color + ' bg-current/10'
+            : 'text-zinc-600 border-zinc-800 hover:text-zinc-400'">
+                {{ f.label }}
+            </button>
+            }
+        </div>
+    </div>
+
+    <!-- Log List -->
+    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-1 font-mono" id="log-container">
+        @if (filteredLogs().length === 0) {
+        <div class="flex flex-col items-center justify-center py-24 gap-3">
+            @if (searchQuery() || activeFilter() !== 'all') {
+            <p class="text-zinc-700 text-[11px]">No logs match your filter.</p>
+            <button (click)="clearSearch(); setFilter('all')" class="text-zinc-600 text-[10px] underline">Clear
+                filters</button>
+            } @else {
+            <div class="flex gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce [animation-delay:0ms]"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce [animation-delay:150ms]"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce [animation-delay:300ms]"></span>
+            </div>
+            <p class="text-zinc-700 text-[10px]">Waiting for events...</p>
+            }
+        </div>
+        }
+
+        @for (log of filteredLogs(); track $index) {
+        <div class="group flex items-start gap-3 px-3 py-2 rounded-lg hover:bg-zinc-900/50 transition-colors">
+            <!-- Timestamp -->
+            <span
+                class="text-[9px] text-zinc-700 font-mono w-16 flex-shrink-0 pt-[1px] group-hover:text-zinc-500 transition-colors">
+                {{ extractTimestamp(log) }}
+            </span>
+            <!-- Source badge -->
+            <span class="text-[8px] font-bold uppercase tracking-widest w-12 flex-shrink-0 pt-[2px]"
+                [ngClass]="getSourceClass(extractSource(log))">
+                {{ extractSource(log) }}
+            </span>
+            <!-- Level badge -->
+            <span class="text-[7px] font-bold uppercase tracking-widest border rounded px-1 py-0.5 flex-shrink-0"
+                [ngClass]="getLevelBadge(log)">
+                {{ getLevelLabel(log) }}
+            </span>
+            <!-- Message -->
+            <span class="text-[11px] leading-relaxed break-words flex-1" [ngClass]="getMessageClass(log)">
+                {{ extractMessage(log) }}
+            </span>
+        </div>
+        }
+        <div id="log-scroll-anchor"></div>
+    </div>
+</div>

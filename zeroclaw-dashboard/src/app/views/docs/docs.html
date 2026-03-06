@@ -1,0 +1,130 @@
+<div class="h-full flex flex-col p-8">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">Knowledge Base</h1>
+      <p class="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">Sovereign Repository / v1.0.4</p>
+    </div>
+    <div class="flex gap-4">
+      <div class="relative">
+        <input type="text" placeholder="Search knowledge..."
+          class="bg-neutral-900/50 border border-neutral-800 text-[11px] font-mono rounded px-4 py-2 w-64 focus:outline-none focus:border-zinc-600 transition-all">
+      </div>
+      <button
+        class="px-4 py-2 rounded bg-neutral-900 border border-neutral-800 text-[10px] font-bold tracking-widest uppercase text-neutral-400 hover:bg-neutral-800 transition-colors">
+        Export PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Repository Grid -->
+  <div class="flex-1 grid grid-cols-12 gap-6 min-h-0">
+
+    <!-- Sidebar - Categories & File Tree -->
+    <div class="col-span-3 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+
+      <!-- Categories -->
+      <div>
+        <h2 class="text-[10px] font-bold tracking-[0.2em] text-neutral-600 uppercase mb-4">Categories</h2>
+        <nav class="space-y-1">
+          @for (cat of categories; track cat) {
+          <button (click)="setCategory(cat)"
+            [ngClass]="activeCategory === cat ? 'bg-white/5 border-emerald-500/30 text-emerald-400' : 'text-neutral-500 border-transparent hover:text-neutral-300'"
+            class="w-full text-left px-3 py-2 rounded border text-xs transition-all flex items-center justify-between group">
+            {{ cat }}
+            @if (activeCategory === cat) {
+            <div class="w-1 h-1 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+            }
+          </button>
+          }
+        </nav>
+      </div>
+
+      <!-- Recent Files -->
+      <div class="flex-1">
+        <h2 class="text-[10px] font-bold tracking-[0.2em] text-neutral-600 uppercase mb-4">Files</h2>
+        <div class="space-y-2">
+          @for (doc of filteredDocs; track doc.id) {
+          <div (click)="selectDoc(doc)"
+            [ngClass]="selectedDoc?.id === doc.id ? 'bg-neutral-900 border-neutral-700' : 'hover:bg-neutral-900/50 border-transparent hover:border-neutral-800/50'"
+            class="p-3 rounded-lg border cursor-pointer transition-all group">
+            <div class="flex items-center gap-3 mb-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2"
+                class="text-neutral-600 group-hover:text-emerald-400 transition-colors">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <span
+                class="text-[11px] font-medium text-neutral-300 group-hover:text-white transition-colors truncate">{{
+                doc.title }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] font-mono text-neutral-600">{{ doc.lastEdited }}</span>
+              <span class="text-[9px] text-zinc-600 italic">@{{ doc.author }}</span>
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Doc Viewer -->
+    <div class="col-span-9 bg-[#111111] border border-neutral-800 rounded-xl overflow-hidden flex flex-col shadow-2xl">
+      @if (selectedDoc) {
+      <!-- Doc Header -->
+      <div class="p-8 border-b border-neutral-800 flex items-start justify-between bg-neutral-900/10">
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <span
+              class="px-2 py-0.5 rounded-sm bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-bold text-indigo-400 uppercase tracking-widest">
+              {{ selectedDoc.category }}
+            </span>
+            @for (tag of selectedDoc.tags; track tag) {
+            <span class="text-[9px] text-neutral-500 font-mono">#{{ tag }}</span>
+            }
+          </div>
+          <h2 class="text-2xl font-light text-white tracking-wide">{{ selectedDoc.title }}</h2>
+        </div>
+        <div class="text-right">
+          <p class="text-[10px] text-neutral-500 font-mono uppercase tracking-widest">Doc ID: {{ selectedDoc.id }}</p>
+          <p class="text-[10px] text-neutral-600 font-mono mt-1">Edited {{ selectedDoc.lastEdited }}</p>
+        </div>
+      </div>
+
+      <!-- Doc Content -->
+      <div class="flex-1 p-12 overflow-y-auto custom-scrollbar bg-neutral-900/5">
+        <div class="max-w-3xl mx-auto">
+          <div class="prose prose-invert prose-zinc max-w-none">
+            <p class="text-neutral-300 leading-relaxed text-sm mb-6 font-light">
+              {{ selectedDoc.content }}
+            </p>
+
+            <div
+              class="bg-neutral-900/50 border border-neutral-800 p-8 rounded-lg font-mono text-[11px] text-neutral-400 leading-relaxed space-y-4">
+              <p>// SECURITY CLEARANCE: LEVEL 4 REQUIRED</p>
+              <p>// ENCRYPTION: SHA-256 ACTIVE</p>
+              <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et
+                dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip
+                ex ea commodo consequat. </p>
+              <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est
+                laborum.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      } @else {
+      <div class="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1" class="text-neutral-800 mb-4">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+        <p class="text-neutral-600 font-mono text-xs uppercase tracking-[0.2em]">Select a document to begin analysis</p>
+      </div>
+      }
+    </div>
+
+  </div>
+</div>

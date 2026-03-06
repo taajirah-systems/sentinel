@@ -1,0 +1,102 @@
+<div class="h-full flex flex-col p-8 bg-[#0a0a0a]">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">Authorization Queue</h1>
+      <p class="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">Human-in-the-Loop Clearance System</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded bg-rose-500/10 border border-rose-500/20">
+        <div class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>
+        <span class="text-[9px] font-bold text-rose-400 uppercase tracking-widest">{{ authRequests().length }}
+          Pending</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="flex-1 grid grid-cols-12 gap-6 min-h-0">
+
+    <!-- Auth Request Queue -->
+    <div class="col-span-7 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
+      <h2 class="text-[10px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Pending Authorizations</h2>
+      @for (req of authRequests(); track req.id) {
+      <div class="p-5 rounded-xl bg-neutral-900/30 border border-neutral-800 hover:border-neutral-700 transition-all">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span [class]="getTypeClass(req.type)"
+              class="px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-widest">
+              {{ req.type }}
+            </span>
+            <span class="text-[9px] font-mono text-neutral-600">{{ req.id }}</span>
+          </div>
+          <span [ngClass]="{
+                            'text-rose-400': req.urgency === 'high',
+                            'text-amber-400': req.urgency === 'medium',
+                            'text-neutral-500': req.urgency === 'low'
+                        }" class="text-[9px] font-mono uppercase">{{ req.urgency }} urgency</span>
+        </div>
+
+        <h3 class="text-sm font-medium text-neutral-100 mb-1">{{ req.title }}</h3>
+        <p class="text-[11px] text-neutral-500 leading-relaxed mb-4">{{ req.description }}</p>
+
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div
+              class="w-5 h-5 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-[9px] font-bold text-neutral-300">
+              {{ req.requester[0] }}
+            </div>
+            <span class="text-[10px] text-neutral-500">Requested by <span class="text-neutral-300">{{ req.requester
+                }}</span> · {{ req.timestamp }}</span>
+          </div>
+          <div class="flex gap-2">
+            <button (click)="reject(req.id)"
+              class="px-4 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-[10px] font-bold text-neutral-400 hover:text-rose-400 hover:border-rose-500/40 transition-all uppercase tracking-widest">
+              Deny
+            </button>
+            <button (click)="approve(req.id)"
+              class="px-4 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all uppercase tracking-widest">
+              Approve
+            </button>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+
+    <!-- Tasks In Review -->
+    <div class="col-span-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar pl-2 border-l border-neutral-800/50">
+      <h2 class="text-[10px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Tasks In Review</h2>
+
+      @if (reviewTasks().length === 0) {
+      <div class="flex-1 flex flex-col items-center justify-center text-center py-16 space-y-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1" class="text-neutral-800">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-[10px] text-neutral-600 font-mono uppercase tracking-widest">All tasks cleared</p>
+      </div>
+      }
+
+      @for (task of reviewTasks(); track task.id) {
+      <div class="p-4 rounded-lg bg-neutral-900/30 border border-amber-500/15 hover:border-amber-500/30 transition-all">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-neutral-200 truncate">{{ task.title }}</span>
+          <span
+            class="text-[9px] px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono">REVIEW</span>
+        </div>
+        <p class="text-[10px] text-neutral-600 mb-3">{{ task.agent || 'Unassigned' }} · {{ task.column }}</p>
+        <div class="flex gap-2">
+          <button
+            class="flex-1 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-[10px] font-bold text-neutral-400 hover:text-white transition-all">Move
+            to Done</button>
+          <button
+            class="flex-1 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-[10px] font-bold text-neutral-400 hover:text-white transition-all">Send
+            Back</button>
+        </div>
+      </div>
+      }
+    </div>
+
+  </div>
+</div>

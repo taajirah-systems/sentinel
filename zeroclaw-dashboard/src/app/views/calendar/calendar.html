@@ -1,0 +1,153 @@
+<div class="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">
+                Agent Timeline
+            </h1>
+            <p class="text-zinc-500 font-mono text-xs uppercase tracking-widest">{{ today }}</p>
+        </div>
+        <div class="flex gap-3">
+            <button
+                class="px-4 py-2 rounded bg-neutral-900 border border-neutral-800 text-[10px] font-bold tracking-widest uppercase text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200 transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="text-zinc-400">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                </svg>
+                Sync Schedule
+            </button>
+            <button
+                class="px-4 py-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-widest uppercase hover:bg-emerald-500/20 transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New Routine
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1 min-h-0">
+
+        <!-- Always Running Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            <h2 class="text-[10px] font-bold tracking-[0.2em] text-neutral-500 uppercase">Always Running</h2>
+            <div class="space-y-3">
+                @for (routine of alwaysRunning; track routine.name) {
+                <div
+                    class="bg-neutral-900/50 border border-neutral-800/80 rounded-lg p-4 flex items-center gap-4 group hover:border-emerald-500/30 transition-all">
+                    <div
+                        class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse">
+                    </div>
+                    <div class="flex-1">
+                        <span class="text-xs font-medium text-neutral-300 block mb-1">{{routine.name}}</span>
+                        <div class="flex items-center gap-2">
+                            <div class="w-4 h-4 rounded-sm flex items-center justify-center text-[8px] font-bold text-white"
+                                [ngClass]="routine.color">
+                                {{routine.agent[0]}}
+                            </div>
+                            <span class="text-[10px] text-neutral-500 font-mono">{{routine.agent}}</span>
+                        </div>
+                    </div>
+                </div>
+                }
+            </div>
+
+            <div
+                class="p-6 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/5 border border-indigo-500/20 mt-8">
+                <h3 class="text-xs font-bold text-indigo-400 mb-2 uppercase tracking-wider">Swarm Optimization</h3>
+                <p class="text-[11px] text-neutral-500 leading-relaxed mb-4">
+                    Autonomous scheduling efficiency is currently at <span class="text-white">94.2%</span>. Architect
+                    recommends 2 additional background tasks for market sentiment analysis.
+                </p>
+                <div class="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-indigo-500 w-[94.2%] rounded-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Timeline -->
+        <div
+            class="lg:col-span-3 flex flex-col min-h-0 bg-[#121212] border border-neutral-800 rounded-xl p-8 relative overflow-hidden">
+            <!-- Vertical Line decoration -->
+            <div class="absolute top-0 bottom-0 left-[7.5rem] w-px bg-neutral-800/50 z-0"></div>
+
+            <div class="relative z-10 flex-1 overflow-y-auto pr-4 custom-scrollbar">
+                @for (ev of schedule; track ev.id) {
+                <div class="relative flex gap-12 mb-10 last:mb-0 group">
+
+                    <!-- Time Column -->
+                    <div class="w-20 pt-1 text-right flex-none">
+                        <span class="text-xs font-mono tracking-widest transition-colors"
+                            [ngClass]="ev.status === 'running' ? 'text-blue-400 font-bold' : 'text-neutral-500'">
+                            {{ ev.time }}
+                        </span>
+                    </div>
+
+                    <!-- Node & Content -->
+                    <div class="flex-1 relative pl-12">
+                        <!-- Node Dot -->
+                        <div class="absolute left-[-3.375rem] top-2 w-3 h-3 rounded-full border-2 border-[#121212] z-20 
+                                transition-transform duration-300 group-hover:scale-125" [ngClass]="{
+                                'bg-emerald-500': ev.status === 'completed',
+                                'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.5)]': ev.status === 'running',
+                                'bg-neutral-700': ev.status === 'upcoming'
+                             }">
+                        </div>
+
+                        @if (ev.status === 'running') {
+                        <div
+                            class="absolute left-[-3.375rem] top-2 w-3 h-3 rounded-full bg-blue-500/50 animate-ping z-10">
+                        </div>
+                        }
+
+                        <!-- Content Card -->
+                        <div
+                            class="bg-neutral-900/30 border border-neutral-800/60 rounded-lg p-5 hover:border-neutral-700 hover:bg-neutral-900/50 transition-all duration-300">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded flex items-center justify-center text-xs font-bold text-white shadow-inner"
+                                        [ngClass]="ev.agentColor">
+                                        {{ ev.agentInitial }}
+                                    </div>
+                                    <div>
+                                        <span class="text-sm font-medium text-neutral-200 block">{{ ev.task }}</span>
+                                        <span
+                                            class="text-[10px] text-neutral-500 font-mono mt-1 block flex items-center gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"
+                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                class="text-neutral-600">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                                                <path d="M2 12h20" />
+                                            </svg>
+                                            {{ ev.target }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div class="px-2 py-1 text-[10px] font-bold tracking-widest uppercase rounded border flex items-center gap-1.5"
+                                    [ngClass]="getStatusColor(ev.status)">
+                                    <span>{{ getStatusIcon(ev.status) }}</span>
+                                    {{ ev.status === 'running' ? 'Running' : ev.status }}
+                                </div>
+                            </div>
+
+                            <div
+                                class="mt-4 flex gap-4 text-[10px] font-bold tracking-widest uppercase text-neutral-600">
+                                <button class="hover:text-emerald-400 cursor-pointer transition-colors">View
+                                    Logs</button>
+                                <button class="hover:text-blue-400 cursor-pointer transition-colors">Edit
+                                    Routine</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

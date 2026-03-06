@@ -1,0 +1,85 @@
+<div
+  class="h-full flex flex-col p-8 bg-[url('/assets/grid.svg')] bg-center bg-repeat relative overflow-hidden overflow-y-auto">
+  <div class="absolute inset-0 bg-gradient-to-br from-black/80 to-[#0A0A0A]/90 z-0 pointer-events-none"></div>
+
+  <div class="z-10 w-full max-w-7xl mx-auto space-y-8">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-3xl font-bold text-white tracking-wider">SWARM OVERVIEW</h2>
+        <p class="text-zinc-500 font-mono text-sm mt-1">Real-time status of all active OpenClaw agents</p>
+      </div>
+      <div class="flex items-center gap-4">
+        @if (lastUpdated()) {
+        <span class="text-[9px] font-mono text-zinc-600">Updated {{ lastUpdated() | date:'HH:mm:ss' }}</span>
+        }
+        <button (click)="spawnAgent()"
+          class="px-5 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs border border-zinc-700/50 transition-colors flex items-center shadow-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          SPAWN NEW AGENT
+        </button>
+      </div>
+
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      @for (agent of agents(); track agent.id) {
+      <div
+        class="bg-gradient-to-b from-zinc-900/80 to-black rounded-xl border border-zinc-800/80 shadow-2xl p-6 relative group overflow-hidden transition-all hover:bg-zinc-900/90 hover:border-zinc-700">
+        <div
+          class="absolute inset-0 z-0 bg-gradient-to-tr from-transparent via-[rgba(255,255,255,0.02)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+        </div>
+
+        <div class="relative z-10">
+          <div class="flex items-start justify-between mb-6">
+            <div
+              class="w-12 h-12 rounded-lg bg-zinc-800/60 border border-zinc-700/50 flex items-center justify-center shadow-inner">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                class="text-zinc-400">
+                <path d="M12 2a2 2 0 0 0-2 2c0 1.1.9 2 2 2s2-.9 2-2a2 2 0 0 0-2-2Z" />
+                <path d="M10 22a2 2 0 0 1-2-2h8a2 2 0 0 1-2 2Z" />
+                <path d="M7.7 6.6C5.5 8 4 10.4 4 13.2c0 3.3 2.1 6.2 5 7.4" />
+                <path d="M16.3 6.6C18.5 8 20 10.4 20 13.2c0 3.3-2.1 6.2-5 7.4" />
+              </svg>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="relative flex h-2 w-2">
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span
+                class="text-xs font-mono font-medium text-emerald-500 tracking-wider uppercase">{{agent.status}}</span>
+            </div>
+          </div>
+
+          <div class="space-y-1 mb-6">
+            <h3 class="text-xl font-bold text-zinc-100 tracking-wide">{{agent.name}}</h3>
+            <p class="text-zinc-500 font-mono text-xs">{{agent.id}}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-black/40 rounded p-3 border border-zinc-800">
+              <p class="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 font-semibold">Active Tasks</p>
+              <p class="text-zinc-200 font-mono font-bold">{{agent.tasksActive}}</p>
+            </div>
+            <div class="bg-black/40 rounded p-3 border border-zinc-800">
+              <p class="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 font-semibold">Core Engine</p>
+              <p class="text-zinc-200 font-mono font-bold truncate text-xs" [title]="agent.model || ''">
+                {{agent.model ? (agent.model.split('/')[1] || agent.model) : 'Unknown'}}</p>
+            </div>
+          </div>
+
+          <button (click)="openChat(agent)"
+            class="w-full py-2.5 rounded bg-zinc-800/50 hover:bg-emerald-900/30 hover:border-emerald-700/50 text-zinc-300 hover:text-emerald-300 font-medium text-sm border border-zinc-700/50 transition-all shadow">
+            ↗ Open Chat
+          </button>
+        </div>
+      </div>
+      }
+    </div>
+  </div>
+</div>

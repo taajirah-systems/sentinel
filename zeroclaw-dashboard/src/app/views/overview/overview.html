@@ -1,0 +1,117 @@
+<div class="h-full overflow-y-auto bg-[#0a0a0a] p-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">Command Centre</h1>
+            <p class="text-zinc-600 font-mono text-[10px] uppercase tracking-widest">ZeroClaw Mission Control / Overview
+            </p>
+        </div>
+        <div class="flex items-center gap-4">
+            @if (lastUpdated()) {
+            <span class="text-[9px] font-mono text-zinc-600">
+                Updated {{ lastUpdated() | date:'HH:mm:ss' }}
+            </span>
+            }
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded border"
+                [ngClass]="isConnected() ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20'">
+                <div class="w-1.5 h-1.5 rounded-full"
+                    [ngClass]="isConnected() ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'">
+                </div>
+                <span class="text-[9px] font-bold uppercase tracking-widest"
+                    [ngClass]="isConnected() ? 'text-emerald-400' : 'text-rose-400'">
+                    {{ isConnected() ? 'Gateway Online' : 'Gateway Offline' }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-4 gap-4 mb-8">
+        @for (card of statCards(); track card.label) {
+        <div (click)="navigate(card.route)"
+            class="p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg"
+            [ngClass]="[getColorClasses(card.color).bg, getColorClasses(card.color).border]">
+            <p class="text-[9px] font-bold tracking-[0.2em] uppercase mb-3"
+                [ngClass]="getColorClasses(card.color).text">{{ card.label }}</p>
+            <p class="text-4xl font-mono font-bold text-neutral-100 mb-2">
+                @if (loading()) { <span class="text-zinc-700 animate-pulse">—</span> }
+                @else { {{ card.value }} }
+            </p>
+            <p class="text-[9px] text-zinc-600 font-mono">{{ card.subtitle }}</p>
+        </div>
+        }
+    </div>
+
+    <!-- Quick Launch + Log Tail -->
+    <div class="grid grid-cols-3 gap-6">
+
+        <!-- Quick Launch -->
+        <div class="col-span-2">
+            <h2 class="text-[10px] font-bold tracking-[0.2em] text-zinc-600 uppercase mb-3">Quick Launch</h2>
+            <div class="grid grid-cols-4 gap-3">
+                @for (link of quickLinks; track link.route) {
+                <button (click)="navigate(link.route)"
+                    class="p-4 rounded-xl border border-zinc-800/60 bg-zinc-900/30 hover:bg-zinc-800/50 hover:border-zinc-700 transition-all text-left group">
+                    <p class="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors">{{
+                        link.label }}</p>
+                </button>
+                }
+            </div>
+
+            <!-- Memory bar section — CPU / Memory -->
+            <div class="mt-6">
+                <h2 class="text-[10px] font-bold tracking-[0.2em] text-zinc-600 uppercase mb-3">System Pulse</h2>
+                <div class="p-5 rounded-xl border border-zinc-800/60 bg-zinc-900/20 space-y-4">
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">CPU</span>
+                            <span class="text-[10px] font-mono text-neutral-300">{{ cpuUsage() }}</span>
+                        </div>
+                        <div class="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-700 bg-blue-500"
+                                [style.width]="cpuUsage()"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Memory</span>
+                            <span class="text-[10px] font-mono text-neutral-300">{{ memoryUsage() }}</span>
+                        </div>
+                        <div class="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-700 bg-indigo-500"
+                                style="width: 40%"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between pt-1 border-t border-zinc-800">
+                        <span class="text-[9px] text-zinc-600 font-mono">UPTIME</span>
+                        <span class="text-[9px] font-mono text-zinc-400">{{ uptime() }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Log Tail -->
+        <div>
+            <h2 class="text-[10px] font-bold tracking-[0.2em] text-zinc-600 uppercase mb-3">Live Feed</h2>
+            <div class="bg-zinc-900/20 border border-zinc-800/60 rounded-xl p-4 space-y-3 h-[340px] overflow-y-auto">
+                @if (!recentLogs().length) {
+                <p class="text-[10px] text-zinc-700 font-mono animate-pulse">Waiting for events...</p>
+                }
+                @for (log of recentLogs(); track $index) {
+                <div class="flex flex-col gap-0.5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[8px] font-bold uppercase tracking-wider"
+                            [ngClass]="sourceColor(formatLogSource(log))">
+                            {{ formatLogSource(log) }}
+                        </span>
+                        <span class="text-[8px] text-zinc-700 font-mono">{{ formatLogTime(log) }}</span>
+                    </div>
+                    <p class="text-[10px] font-mono text-zinc-400 leading-relaxed">{{ formatLogMessage(log) }}</p>
+                </div>
+                }
+            </div>
+        </div>
+
+    </div>
+</div>

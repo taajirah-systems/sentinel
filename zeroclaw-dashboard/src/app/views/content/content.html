@@ -1,0 +1,100 @@
+<div class="h-full flex flex-col pt-8 px-8 pb-8 bg-[#0a0a0a] overflow-y-auto no-scrollbar">
+  <!-- Header -->
+  <div class="flex justify-between items-end mb-8 shrink-0">
+    <div>
+      <h2 class="text-3xl font-light text-white tracking-widest uppercase flex items-center gap-3">
+        <span class="text-indigo-500">📖</span> Content
+      </h2>
+      <p class="text-sm font-medium text-gray-400 mt-2 uppercase tracking-widest">
+        Review & Publish Agent Swarm Content
+      </p>
+    </div>
+
+    <!-- Stats -->
+    <div class="flex gap-4">
+      <div class="bg-[#111111] border border-[#2d2d2d] rounded-xl px-5 py-3 text-center">
+        <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Pending Approval</p>
+        <p class="text-2xl font-light text-orange-400">{{ pendingCount }}</p>
+      </div>
+      <div class="bg-[#111111] border border-[#2d2d2d] rounded-xl px-5 py-3 text-center">
+        <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Published Today</p>
+        <p class="text-2xl font-light text-emerald-400">{{ publishedCount }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content Grid -->
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    @for (item of contentItems; track item.id) {
+    <div
+      class="bg-[#111111] rounded-2xl border border-[#2d2d2d] p-6 hover:border-[#404040] transition-colors relative overflow-hidden group flex flex-col">
+      <!-- Status Indicator Strip -->
+      <div class="absolute inset-y-0 left-0 w-1" [ngClass]="{
+           'bg-orange-500': item.status === 'Pending',
+           'bg-emerald-500': item.status === 'Published',
+           'bg-red-500': item.status === 'Rejected'
+         }">
+      </div>
+
+      <div class="pl-2 flex-1">
+        <!-- Top Row: Meta -->
+        <div class="flex justify-between items-start mb-4">
+          <div class="flex items-center gap-3">
+            <span
+              class="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-[10px] font-bold uppercase tracking-widest text-gray-300">
+              {{ item.platform }}
+            </span>
+            <span class="text-xs text-gray-500 font-mono">{{ item.createdAt | date:'shortTime' }}</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div
+              class="w-6 h-6 rounded-full bg-[#1f1f1f] border border-[#333] flex items-center justify-center text-xs font-bold text-gray-400">
+              {{ item.authorAgent.charAt(0) }}
+            </div>
+            <span class="text-xs font-medium text-gray-400">{{ item.authorAgent }}</span>
+          </div>
+        </div>
+
+        <!-- Content Body -->
+        <div class="mb-6">
+          <p class="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap font-mono">{{ item.content }}</p>
+        </div>
+
+        <div class="mt-auto pt-4 border-t border-[#2d2d2d] flex justify-between items-center">
+          <!-- Predictions -->
+          @if (item.engagementPrediction) {
+          <span
+            class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded">
+            {{ item.engagementPrediction }} Engagement Expected
+          </span>
+          } @else {
+          <span></span>
+          }
+
+          <!-- Action Buttons -->
+          <div class="flex gap-2">
+            @if (item.status === 'Pending') {
+            <button (click)="rejectItem(item.id)"
+              class="px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 rounded transition-colors">
+              Reject
+            </button>
+            <button
+              class="px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-gray-300 hover:bg-white/5 rounded transition-colors">
+              Edit
+            </button>
+            <button (click)="approveItem(item.id)"
+              class="px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-black bg-emerald-500 hover:bg-emerald-400 rounded transition-colors">
+              Publish
+            </button>
+            } @else {
+            <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 px-3 py-1.5">{{ item.status
+              }}</span>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+    }
+  </div>
+</div>

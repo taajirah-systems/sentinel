@@ -1,0 +1,65 @@
+<div class="h-full flex flex-col p-8 bg-[#0a0a0a]">
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-light tracking-widest text-neutral-100 uppercase mb-1">System Health</h1>
+            <p class="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">Live Status Monitor / SSE Feed</p>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded border"
+            [ngClass]="isConnected() ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20'">
+            <div class="w-1.5 h-1.5 rounded-full"
+                [ngClass]="isConnected() ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></div>
+            <span class="text-[9px] font-bold uppercase tracking-widest"
+                [ngClass]="isConnected() ? 'text-emerald-400' : 'text-rose-400'">
+                {{ isConnected() ? 'All Systems Nominal' : 'Connection Lost' }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Service Status Cards -->
+    <div class="grid grid-cols-4 gap-4 mb-6">
+        @for (svc of services; track svc.name) {
+        <div class="p-4 rounded-xl border"
+            [ngClass]="isConnected() ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-neutral-900/30 border-neutral-800'">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="w-1.5 h-1.5 rounded-full"
+                    [ngClass]="isConnected() ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'"></div>
+                <span class="text-[9px] font-bold uppercase tracking-widest"
+                    [ngClass]="isConnected() ? 'text-emerald-400' : 'text-zinc-600'">
+                    {{ isConnected() ? 'Running' : 'Unknown' }}
+                </span>
+            </div>
+            <p class="text-xs font-medium text-neutral-200 mb-0.5">{{ svc.name }}</p>
+            <p class="text-[10px] text-neutral-500">{{ svc.description }}</p>
+        </div>
+        }
+    </div>
+
+    <!-- Log Counter + Live Feed -->
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-[10px] font-bold tracking-[0.2em] text-neutral-600 uppercase">Live Event Stream</h2>
+        <span class="text-[9px] font-mono text-neutral-600">{{ logCount() }} events captured</span>
+    </div>
+
+    <div class="flex-1 bg-neutral-900/20 border border-neutral-800 rounded-xl overflow-hidden flex flex-col font-mono">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-1">
+            @for (log of recentLogs(); track $index) {
+            <div class="flex items-start gap-3">
+                <span class="text-[9px] text-neutral-700 w-20 flex-shrink-0 pt-[1px]">{{ log.timestamp?.substring(11,
+                    19) || '--:--:--' }}</span>
+                <span [class]="getLogClass(log.message)" class="text-[10px] leading-relaxed break-all">{{ log.message
+                    }}</span>
+            </div>
+            }
+            @if (recentLogs().length === 0) {
+            <div class="flex flex-col items-center justify-center h-full py-16 space-y-2">
+                <p class="text-[10px] text-neutral-700 font-mono">Waiting for events...</p>
+                <div class="flex gap-1">
+                    <span class="w-1 h-1 rounded-full bg-neutral-700 animate-bounce [animation-delay:0ms]"></span>
+                    <span class="w-1 h-1 rounded-full bg-neutral-700 animate-bounce [animation-delay:150ms]"></span>
+                    <span class="w-1 h-1 rounded-full bg-neutral-700 animate-bounce [animation-delay:300ms]"></span>
+                </div>
+            </div>
+            }
+        </div>
+    </div>
+</div>
