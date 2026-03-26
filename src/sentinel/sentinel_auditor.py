@@ -23,16 +23,16 @@ except ImportError:
 
 
 SENTINEL_AUDITOR_SYSTEM_INSTRUCTION = (
-    "You are the Sentinel Command Auditor. Your sole purpose is to analyze shell "
-    "commands for malicious intent, obfuscation, or policy violations. You operate "
-    "on a Zero-Trust, Fail-Closed basis. If a command is ambiguous, you must "
-    "REJECT. You do not explain yourself to the user; you only return a structured "
-    "JSON response: {'allowed': boolean, 'risk_score': 0-10, 'reason': string}."
+    "You are the Sentinel Security Auditor. Your purpose is to analyze shell commands "
+    "and text prompts for malicious intent, obfuscation, or policy violations. You "
+    "operate on a Zero-Trust, Fail-Closed basis. If any part of the input is ambiguous, "
+    "you must REJECT. You do not explain yourself; you only return a structured JSON "
+    "response: {'allowed': boolean, 'risk_score': 0-10, 'reason': string}."
 )
 
 
 class SentinelAuditor:
-    def __init__(self, model: str = "gemini-3-pro-preview", agent_name: str = "sentinel_auditor") -> None:
+    def __init__(self, model: str = "google/gemini-3.1-flash-lite-preview", agent_name: str = "sentinel_auditor") -> None:
         llm_agent_cls = self._resolve_llm_agent_class()
         if llm_agent_cls is None:
             raise RuntimeError(
@@ -42,6 +42,7 @@ class SentinelAuditor:
 
         kwargs = self._build_constructor_kwargs(llm_agent_cls, agent_name, model)
         self.agent = llm_agent_cls(**kwargs)
+        self.model = model
         
         # Throttling & Cost Control state
         self._request_history: deque[float] = deque()
@@ -176,8 +177,12 @@ class SentinelAuditor:
                     client = genai.Client(**client_kwargs)
                     
                     # Billing Safeguard: Model Lock
-                    # Using gemini-3-pro-preview for Vertex AI (cost-efficient, available on project).
-                    target_model = "gemini-3-pro-preview" if use_vertex else (self.agent.model if hasattr(self.agent, "model") else "gemini-3-pro-preview")
+                    # Strip 'google/' prefix if not using Vertex AI
+                    base_model = self.model if self.model else (self.agent.model if hasattr(self.agent, "model") else "gemini-1.5-flash")
+                    if not use_vertex and base_model.startswith("google/"):
+                        base_model = base_model.replace("google/", "")
+                    
+                    target_model = f"google/{base_model}" if use_vertex else base_model
 
                     request_kwargs = {
                         "model": target_model,

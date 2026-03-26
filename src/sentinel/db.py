@@ -103,3 +103,22 @@ class SentinelDB:
                 (time.time(), command, allowed, risk_score, reason, details)
             )
             conn.commit()
+
+    def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id, timestamp, command, allowed, risk_score, reason, details FROM audit_logs ORDER BY timestamp DESC LIMIT ?",
+                (limit,)
+            )
+            logs = []
+            for row in cursor.fetchall():
+                logs.append({
+                    "id": row[0],
+                    "timestamp": row[1],
+                    "command": row[2],
+                    "allowed": bool(row[3]),
+                    "risk_score": row[4],
+                    "reason": row[5],
+                    "details": json.loads(row[6]) if row[6] else {}
+                })
+            return logs

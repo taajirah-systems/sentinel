@@ -1,0 +1,23 @@
+{
+    "name": "influencer",
+    "version": "1.0.0",
+    "description": "AI Agent Influencer orchestration skill",
+    "entrypoint": "influencer.py",
+    "tools": [
+        {
+            "name": "influencer_status",
+            "description": "Check the status of the influencer content queue",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list_pending", "approve_all", "stats"],
+                        "description": "Action to perform on the content queue"
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+    ]
+}

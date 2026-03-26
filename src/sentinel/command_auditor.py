@@ -22,6 +22,7 @@ class HardKillConfig:
     whitelisted_domains: tuple[str, ...]
     lockdown_mode: bool
     allowed_commands: tuple[str, ...]
+    high_value_resources: dict[str, int]
 
 
 class CommandAuditor:
@@ -38,7 +39,11 @@ class CommandAuditor:
             return deterministic_decision
 
         if self._is_allowed_in_lockdown(normalized_command):
-            return AuditDecision(allowed=True, risk_score=0, reason="Command explicitly allowed by policy.")
+            return AuditDecision(allowed=True, risk_score=0, reason="Command explicitly allowed by policy.", insight="NATIVE_TRUST: Verified against allow-list.")
+
+        dependency_decision = self._dependency_audit(normalized_command)
+        if dependency_decision is not None:
+            return dependency_decision
 
         if self.llm_auditor is None:
             return AuditDecision.reject("LLM auditor unavailable; fail-closed policy applied.", risk_score=9)
@@ -87,6 +92,22 @@ class CommandAuditor:
                         risk_score=10,
                     )
 
+        return None
+
+    def _dependency_audit(self, command: str) -> Optional[AuditDecision]:
+        """
+        Evaluates the 'Value Topology' of an action by checking resource dependencies.
+        """
+        lowered_command = command.lower()
+        for resource, dependents in self.config.high_value_resources.items():
+            if resource.lower() in lowered_command:
+                if dependents >= 3:
+                    insight = f"VALUE_TOPOLOGY: Action targets '{resource}' with {dependents} downstream dependents. High semantic risk detected."
+                    return AuditDecision.reject(
+                        reason=f"High-value resource dependency conflict: {resource}",
+                        risk_score=8,
+                        insight=insight
+                    )
         return None
 
     def _is_allowed_in_lockdown(self, command: str) -> bool:
@@ -299,6 +320,13 @@ class CommandAuditor:
             default=(),
         )
 
+        high_value_resources = hard_kill.get("high_value_resources", {
+            "~/.openclaw/workspace/": 5,
+            "sentinel/data/": 4,
+            ".env": 10,
+            "/etc/": 10
+        })
+
         return HardKillConfig(
             blocked_strings=blocked_strings,
             blocked_paths=blocked_paths,
@@ -307,6 +335,7 @@ class CommandAuditor:
             whitelisted_domains=whitelisted_domains,
             lockdown_mode=lockdown_mode,
             allowed_commands=allowed_commands,
+            high_value_resources=high_value_resources
         )
 
 

@@ -11,6 +11,15 @@
     },
     "playwright": {
       "command": "npx -y @playwright/mcp@latest --cdp-endpoint wss://chrome.browserless.io?token=2U11g2NSQ2j1nCv5c3f2662f757a9cd0459cc24524660336b"
+    },
+    "gitnexus": {
+      "command": "npx -y gitnexus mcp"
+    },
+    "google-workspace": {
+      "command": "npx -y @googleworkspace/cli mcp --services all"
+    },
+    "notebooklm": {
+      "command": "npx -y notebooklm-mcp"
     }
   },
   "imports": []

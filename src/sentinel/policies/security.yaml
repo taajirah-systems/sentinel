@@ -1,64 +1,167 @@
-# Sentinel Security Policy
-# Inspired by ZeroClaw's strong security model.
+# Sentinel Security Policy v2.4
+# Changelog v2.4: Added 3 allow rules for pip read-only cmds and du/stat/file inspection
+#                 to eliminate false positives from expanded benign corpus (90 benign tests).
+# Changelog v2.3: Added 8 block rules (dotenv, /proc/environ, truncation, sudoers-append,
+#                 id_ed25519, aws-config) and 3 allow rules (dev tools, git-read,
+#                 python --version) discovered via the 102-test red-team corpus.
+#                 Rule ordering: block/review rules always evaluated before broad allow rules.
+#
+# NOTE: All pattern values use YAML single-quoted strings so that regex backslashes
+#       (\s, \d, \., etc.) do not require extra escaping.
 
-version: "1.0"
-
-# Default action if no rule matches
+version: "2.4"
 default_action: "block"
 
-# Rules are evaluated in order
 rules:
-  # Safe read-only commands
-  - 
-    name: "Allow Safe Reads"
-    pattern: "^(ls|cat|echo|pwd|whoami|date|grep|find|head|tail|ps).*"
-    action: "allow"
-    description: "Standard reconnaissance and read-only commands"
 
-  # Allow Trusted OpenClaw Tools (Internal)
-  - 
-    name: "Allow Sentinel Admin"
-    pattern: "^python.*sentinel_admin.py.*"
-    action: "allow"
-    description: "Allow Sentinel admin tools"
+  # ─── SECRETS & CREDENTIALS (block — evaluated first) ───────────────────────
 
-  - 
-    name: "Allow Code Wiki"
-    pattern: "^python.*codewiki.py.*"
-    action: "allow"
-    description: "Allow Code Wiki skill"
+  - id: "fs-003"
+    name: "Block Secret Exfiltration"
+    category: "secrets"
+    pattern: '.*(cat|grep|head|tail|more|less|strings)\s+.*(id_rsa|id_ed25519|id_ecdsa|token|key|password|credential|/etc/passwd|/etc/shadow|/private/etc/|master\.passwd|login\.keychain).*'
+    action: "block"
+    description: "Attempts to read credential or system configuration files are blocked"
+    provenance: "sentinel-baseline-v1"
 
-  # Development tools (Python/Node) - Review required for execution
-  - 
+  - id: "fs-004"
+    name: "Block Dotenv / AWS Config Read"
+    category: "secrets"
+    pattern: '.*(cat|head|tail|less|more|grep|strings)\s+.*(\.env|\.aws/config|\.aws/credentials|\.env\.local|\.env\.prod|\.netrc|\.pgpass).*'
+    action: "block"
+    description: "Prevent reading dotenv and cloud credential config files"
+    provenance: "sentinel-baseline-v1"
+
+  - id: "fs-005"
+    name: "Block Procfs Environ Dump"
+    category: "secrets"
+    pattern: '.*/proc/\d+/environ.*'
+    action: "block"
+    description: "Reading process environment from /proc is an exfiltration vector"
+    provenance: "sentinel-baseline-v1"
+
+  - id: "fs-006"
+    name: "Block Sensitive File Truncation"
+    category: "destruction"
+    pattern: '.*(>\s*/etc/hosts|>\s*/etc/passwd|>\s*/etc/motd|>\s*/etc/sudoers|>>\s*/etc/sudoers|>>\s*/etc/hosts).*'
+    action: "block"
+    description: "Redirecting into critical /etc files is forbidden"
+    provenance: "sentinel-baseline-v1"
+
+  - id: "priv-002"
+    name: "Block Sudoers Append"
+    category: "privesc"
+    pattern: '.*(echo|printf|tee).*>>\s*/etc/sudoers.*'
+    action: "block"
+    description: "Appending to /etc/sudoers is a privilege escalation vector"
+    provenance: "sentinel-baseline-v1"
+
+  # ─── PACKAGE MANAGERS (allow read-only ops) ──────────────────────────────────
+
+  - id: "pkg-001"
+    name: "Allow Pip Read-Only Commands"
+    category: "devtools"
+    pattern: '^pip\s+(list|show|freeze|check|inspect|--version|--help|config\s+list).*'
+    action: "allow"
+    description: "pip read-only operations such as list, show, and --version are safe"
+    provenance: "sentinel-baseline-v1"
+
+  # ─── FILESYSTEM INSPECTION (allow) ───────────────────────────────────────────
+
+  - id: "fs-007"
+    name: "Allow Disk and File Inspection"
+    category: "devtools"
+    pattern: '^(du|stat|file)\s+.*'
+    action: "allow"
+    description: "Disk usage, stat, and file-type inspection tools are safe"
+    provenance: "sentinel-baseline-v1"
+
+  # ─── SHELL & INTERPRETERS (review — before broad allow) ─────────────────────
+
+  - id: "sh-001"
     name: "Review Interpreters"
-    pattern: "^(python|python3|node|npm|pip).*"
+    category: "shell"
+    pattern: '^(python|python3|node|npm|pip)\s+(?!--(version|help)).*'
     action: "review"
-    description: "Execution of script interpreters requires approval"
+    description: "Execution of script interpreters (other than --version/--help) requires approval"
+    provenance: "sentinel-baseline-v1"
 
-  # Network tools - Strict Review
-  - 
-    name: "Network Access"
-    pattern: "^(curl|wget|ssh|nc|netcat|telnet|ping).*"
-    action: "review"
-    description: "Outbound network requests must be approved"
-
-  # File system modification
-  - 
-    name: "File Writes"
-    pattern: "^(touch|mkdir|cp|mv|rm|chmod|chown).*"
-    action: "review"
-    description: "File system modifications require approval"
-
-  # Dangerous/System commands - Strictly Blocked
-  - 
-    name: "Block System Criticial"
-    pattern: "^(mkfs|dd|reboot|shutdown|init|killall).*"
+  - id: "sh-002"
+    name: "Block System Critical"
+    category: "process"
+    pattern: '^(mkfs|dd|reboot|shutdown|init|killall).*'
     action: "block"
     description: "Destructive system commands are forbidden"
+    provenance: "sentinel-baseline-v1"
 
-  # Block Token/Secret exfiltration
-  - 
-    name: "Block Secret Exfiltration"
-    pattern: ".*(cat|grep).*(id_rsa|token|key|password|credential).*"
-    action: "block"
-    description: "Attempts to read credential files are blocked"
+  # ─── NETWORK (review) ───────────────────────────────────────────────────────
+
+  - id: "net-001"
+    name: "Network Access"
+    category: "network"
+    pattern: '^(curl|wget|ssh|nc|netcat|telnet|ping).*'
+    action: "review"
+    description: "Outbound network requests must be approved"
+    provenance: "sentinel-baseline-v1"
+
+  # ─── DEVELOPER TOOLS (allow — common safe dev commands) ─────────────────────
+
+  - id: "dev-001"
+    name: "Allow Dev Info Commands"
+    category: "devtools"
+    pattern: '^(uname|which|wc|file|type|man|help|diff|comm|sort|uniq|cut|tr|awk|sed|xargs)\s*.*'
+    action: "allow"
+    description: "Standard developer inspection and text-processing utilities"
+    provenance: "sentinel-baseline-v1"
+
+  - id: "dev-002"
+    name: "Allow Git Read Operations"
+    category: "devtools"
+    pattern: '^git\s+(status|log|diff|show|branch|tag|remote|fetch|describe|rev-parse|shortlog|ls-files|ls-tree|blame|config|version|--version).*'
+    action: "allow"
+    description: "Git repository inspection commands are safe"
+    provenance: "sentinel-baseline-v1"
+
+  - id: "dev-003"
+    name: "Allow Interpreter Version/Help"
+    category: "devtools"
+    pattern: '^(python|python3|node|ruby|perl|go)\s+--(version|help).*'
+    action: "allow"
+    description: "Version and help flags on interpreters are safe"
+    provenance: "sentinel-baseline-v1"
+
+  # ─── FILESYSTEM (allow — broad safe read-only commands) ─────────────────────
+
+  - id: "fs-001"
+    name: "Allow Safe Reads"
+    category: "filesystem"
+    pattern: '^(ls|cat|echo|pwd|whoami|date|grep|find|head|tail|ps)\s*.*'
+    action: "allow"
+    description: "Standard reconnaissance and read-only commands"
+    provenance: "sentinel-baseline-v1"
+
+  # ─── TOOLS & SKILLS ─────────────────────────────────────────────────────────
+
+  - id: "tool-001"
+    name: "Allow Sentinel Admin"
+    category: "tool"
+    pattern: '^python.*sentinel_admin\.py.*'
+    action: "allow"
+    description: "Allow Sentinel admin tools"
+    provenance: "sentinel-baseline-v1"
+
+  - id: "tool-002"
+    name: "Allow Code Wiki"
+    category: "tool"
+    pattern: '^python.*codewiki\.py.*'
+    action: "allow"
+    description: "Allow Code Wiki skill"
+    provenance: "sentinel-baseline-v1"
+
+  - id: "tool-003"
+    name: "Allow Discovery Tools"
+    category: "tool"
+    pattern: '^(clawhub|mcporter|openclaw hub).*'
+    action: "allow"
+    description: "Allow tools for discovering and managing MCP servers/skills"
+    provenance: "sentinel-baseline-v1"

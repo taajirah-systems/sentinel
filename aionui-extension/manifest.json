@@ -1,0 +1,25 @@
+{
+  "id": "sentinel-extension",
+  "name": "Sentinel Swarm Dashboard",
+  "version": "1.0.0",
+  "description": "Native integration for Sentinel agents into AionUi",
+  "icon": "🛡️",
+  "tools": [
+    {
+      "name": "sentinel-status",
+      "command": "scripts/bridge.sh status",
+      "description": "Check current Sentinel security level"
+    },
+    {
+      "name": "sentinel-logs",
+      "command": "scripts/bridge.sh logs",
+      "description": "View recent Sentinel audit logs"
+    },
+    {
+      "name": "sentinel-orchestrate",
+      "command": "scripts/bridge.sh orchestrate",
+      "description": "Dispatch a new Sentinel swarm mission"
+    }
+  ],
+  "data_directory": "/Users/taajirah_systems/.openclaw/workspace/"
+}

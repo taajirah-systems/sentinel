@@ -43,6 +43,7 @@
               {{ log.allowed ? 'Allowed' : 'Blocked' }}
             </span>
             <span class="log-cmd">{{ log.command }}</span>
+            <span class="log-score" *ngIf="log.risk_score !== undefined">Risk: {{ log.risk_score }}/10</span>
             <span class="log-time">{{ log.timestamp }}</span>
           </div>
           <div *ngIf="auditLogs.length === 0" class="loading-spinner">No recent activity</div>

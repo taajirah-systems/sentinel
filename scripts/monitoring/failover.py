@@ -21,11 +21,14 @@ QUOTA_ERRORS = [
     'token limit reached'
 ]
 
-# Supported Models in Rotation Order
+# Supported Models (Failover List)
 MODEL_ROTATION = [
-    "google-gemini-cli/gemini-3-pro-preview",
-    "ollama/gemma3"
-    ]
+    "google-1/gemini-3.1-flash-lite-preview",
+    "google-2/gemini-3.1-flash-lite-preview"
+]
+
+RESTART_COOLDOWN_SEC = 60
+last_restart_time = 0
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,7 +69,12 @@ def rotate_model():
             next_idx = 0
             
         next_model = MODEL_ROTATION[next_idx]
-        logging.info(f"🔄 Switching to Falback Model: {next_model}")
+        
+        if next_model == current_model:
+            logging.warning("⚠️ No alternative model available. Skipping failover to avoid loop.")
+            return None
+
+        logging.info(f"🔄 Switching to Fallback Model: {next_model}")
         
         # Update Config
         if "agents" not in config: config["agents"] = {}
@@ -85,20 +93,24 @@ def rotate_model():
         return False
 
 def trigger_restart():
-    """Signal Sentinel to restart OpenClaw."""
+    """Signal Sentinel to restart OpenClaw, with cooldown."""
+    global last_restart_time
+    current_time = time.time()
+
+    if (current_time - last_restart_time) < RESTART_COOLDOWN_SEC:
+        logging.warning(f"⏳ Restart ignored (Cooldown: {RESTART_COOLDOWN_SEC - (current_time - last_restart_time):.1f}s remaining)")
+        return False
+
     logging.info("🚨 Triggering OpenClaw Restart...")
     RESTART_FLAG.touch()
-    
-    # Kill the OpenClaw Gateway process to force the restart loop
     try:
-        # Find process named 'openclaw gateway' or arguments containing it
-        # Using pkill is simplest for 'node' running 'openclaw' script
-        # But 'openclaw' might be the process name if compiled binary
-        # Let's try flexible pkill
         subprocess.run(["pkill", "-f", "openclaw gateway"], check=False)
         logging.info("Sent kill signal to OpenClaw Gateway.")
+        last_restart_time = current_time
+        return True
     except Exception as e:
         logging.error(f"Failed to kill process: {e}")
+        return False
 
 def monitor_logs():
     logging.info("Starting OpenClaw Model Monitor...")

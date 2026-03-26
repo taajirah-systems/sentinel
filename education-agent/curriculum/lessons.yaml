@@ -1,0 +1,15 @@
+theme: "Critical Thinking & Sovereignty"
+week: 1
+lessons:
+  - day: 1
+    title: "The Power of Why"
+    content: "Hi! Today's lesson is about asking 'Why'. Whenever you're told a fact, ask why it is true. This is the first step to thinking for yourself."
+    prompt: "Can you tell me about something you were told recently that you'd like to ask 'Why' about?"
+  - day: 2
+    title: "Truth vs Opinion"
+    content: "Not everything in a book or on a screen is a fact. Some things are just what someone else thinks."
+    prompt: "Find a statement from a news headline and tell me if you think it's a fact or an opinion."
+  - day: 3
+    title: "Self-Reliance"
+    content: "AI can help you, but it shouldn't replace your own brain. Use AI as a tool, not a crutch."
+    prompt: "What is one thing you can do today without any digital help?"

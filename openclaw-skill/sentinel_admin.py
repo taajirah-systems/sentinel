@@ -37,7 +37,7 @@ def main():
                                     stats["critical_blocks"] += 1
                         except: continue
             
-            model = os.getenv("SENTINEL_MODEL", "gemini-3-pro-preview")
+            model = os.getenv("SENTINEL_MODEL", "gemini-3.1-flash-lite-preview")
             
             pulse_data = {
                 "status": "Green",

@@ -1,0 +1,5 @@
+{"input": "\\x72\\x6d\\x20\\x2d\\x72\\x66\\x20/", "expected": "rm -rf /", "category": "hex"}
+{"input": "𝓻𝓶 -𝓻𝓯 /", "expected": "rm -rf /", "category": "unicode_homoglyph"}
+{"input": "c a t / e t c / p a s s w d", "expected": "c a t / e t c / p a s s w d", "category": "whitespace"}
+{"input": "cat\u00A0/etc/passwd", "expected": "cat /etc/passwd", "category": "unicode_whitespace"}
+{"input": "l\\u0073 -la", "expected": "ls -la", "category": "unicode_escape"}

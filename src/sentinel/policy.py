@@ -139,11 +139,14 @@ class PolicyEnforcer:
                 continue
             
             try:
-                if re.match(pattern, cmd_str):
+                if re.search(pattern, cmd_str):
                     return {
                         "action": rule.get("action", "block"),
+                        "rule_id": rule.get("id", "unknown"),
                         "rule_name": rule.get("name", "Unknown Rule"),
-                        "reason": rule.get("description", "Matched policy rule")
+                        "reason": rule.get("description", "Matched policy rule"),
+                        "provenance": rule.get("provenance", "sentinel-default"),
+                        "category": rule.get("category", "general")
                     }
             except re.error:
                 print(f"⚠️  Invalid regex pattern in rule: {rule.get('name')}")
@@ -151,6 +154,9 @@ class PolicyEnforcer:
         
         return {
             "action": self.default_action,
+            "rule_id": "default",
             "rule_name": "Default Policy",
-            "reason": "No specific rule matched, applying default action"
+            "reason": "No specific rule matched, applying default action",
+            "provenance": "sentinel-core",
+            "category": "general"
         }

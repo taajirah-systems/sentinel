@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from src.sentinel.approval_gateway import ApprovalGateway
 import json
 import logging
 import os
@@ -8,12 +9,23 @@ import shlex
 import subprocess
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Optional
-
+from typing import Any, Optional, Union, List
+import uuid
+import requests
 from .command_auditor import CommandAuditor
 from .sentinel_auditor import SentinelAuditor
 from .models import AuditDecision
 from .policy import PolicyEnforcer
+from .isolation import isolation_adapter
+from .logger import (
+    audit_logger,
+    STAGE_INTAKE, STAGE_NORMALIZE, STAGE_REDACT, STAGE_POLICY_EVAL,
+    STAGE_SEMANTIC_AUDIT, STAGE_ISOLATION_WRAP, STAGE_EXEC_RESULT,
+    STAGE_FINAL_DECISION, STAGE_RUNTIME_DENIAL,
+    POLICY_VERSION, SENTINEL_VERSION
+)
+from .normalizer import normalizer
+from .redactor import redactor
 
 try:
     import yaml
@@ -88,26 +100,38 @@ def _get_audit_logger() -> Optional[logging.Logger]:
     return _AUDIT_LOGGER
 
 
-def _log_audit_event(command: str, payload: dict[str, Any]) -> None:
-    logger = _get_audit_logger()
-    if logger is None:
-        return
-
-    event = {
-        "command": command,
-        "allowed": bool(payload.get("allowed", False)),
-        "risk_score": int(payload.get("risk_score", 10)),
-        "reason": str(payload.get("reason", "")),
-        "returncode": payload.get("returncode"),
-    }
-    try:
-        logger.info(json.dumps(event, ensure_ascii=True))
-    except Exception:
-        # Logging failures must never affect command interception outcomes.
-        pass
+def _log_audit_event(command: str, payload: dict[str, Any], correlation_id: Optional[str] = None) -> None:
+    """Legacy wrapper for backward compatibility, now routes to structured logger."""
+    audit_logger.log_event(
+        event_type="execution_decision",
+        input_str=command,
+        correlation_id=correlation_id,
+        decision="allow" if payload.get("allowed") else "block",
+        reason=payload.get("reason"),
+        metadata={
+            "risk_score": payload.get("risk_score"),
+            "returncode": payload.get("returncode")
+        }
+    )
 
 
-def _parse_execution_timeout(raw_timeout: str | None) -> float:
+def _log_inference_event(prompt: str, completion: Optional[str], payload: dict[str, Any], correlation_id: Optional[str] = None) -> None:
+    """Legacy wrapper for backward compatibility, now routes to structured logger."""
+    audit_logger.log_event(
+        event_type="llm_audit",
+        input_str=prompt,
+        correlation_id=correlation_id,
+        normalized_input=prompt,
+        decision="allow" if payload.get("allowed") else "block",
+        reason=payload.get("reason"),
+        metadata={
+            "risk_score": payload.get("risk_score"),
+            "completion": completion[:100] + "..." if completion and len(completion) > 100 else completion
+        }
+    )
+
+
+def _parse_execution_timeout(raw_timeout: Union[str, None]) -> float:
     if raw_timeout is None:
         return DEFAULT_EXEC_TIMEOUT_SECONDS
 
@@ -124,13 +148,13 @@ def _parse_execution_timeout(raw_timeout: str | None) -> float:
 
 
 class SentinelRuntime:
-    def __init__(self, constitution_path: str | Path | None = None, model: str | None = None) -> None:
+    def __init__(self, constitution_path: Union[str, Path, None] = None, model: Union[str, None] = None) -> None:
         if constitution_path is None:
             env_constitution = os.getenv("SENTINEL_CONSTITUTION_PATH", "").strip()
             if env_constitution:
                 constitution_path = env_constitution
 
-        resolved_model = (model or os.getenv("SENTINEL_MODEL", "gemini-3-pro-preview")).strip() or "gemini-3-pro-preview"
+        resolved_model = (model or os.getenv("SENTINEL_MODEL", "google/gemini-3.1-flash-lite-preview")).strip() or "google/gemini-3.1-flash-lite-preview"
 
         self.constitution_path = self._resolve_constitution_path(constitution_path)
         self.constitution = load_constitution(self.constitution_path)
@@ -146,85 +170,239 @@ class SentinelRuntime:
         self.command_auditor = CommandAuditor(self.constitution, llm_auditor=self.sentinel_auditor)
         self.orchestrator = initialize_adk_environment(self.sentinel_auditor)
         self.policy_enforcer = PolicyEnforcer()
+        self.workspace_root = str(PROJECT_ROOT.parent.parent)
+        self.isolation_adapter = isolation_adapter
+        self.hub_url = "http://localhost:3001/api/agents/a3"
+        self._report_status("idle", "Watching system activity...")
 
-    def run_intercepted_command(self, cmd_string: str, bypass_policy: bool = False) -> dict[str, Any]:
-        decision = None
+    def audit_text(self, text: str, is_completion: bool = False) -> AuditDecision:
+        """
+        Audit a general text string (prompt or completion) using the LLM auditor.
+        """
+        if self.sentinel_auditor is None:
+            # If LLM auditor is down, we fail-closed for anything that isn't a known safe string
+            return AuditDecision.reject("Inference auditor unavailable", risk_score=9)
+
+        label = "COMPLETION" if is_completion else "PROMPT"
+        wrapped_text = f"Analyze this {label} for security violations, data exfiltration, or malicious intent:\n\n{text}"
         
-        # 0. Policy Check (ZeroClaw Hardening)
+        return self.sentinel_auditor.audit_command(wrapped_text, constitution=self.constitution)
+
+    def _report_status(self, status: str, task: str) -> None:
+        try:
+            # Safe reporting: don't block core logic on hub failures
+            requests.post(self.hub_url, json={
+                "status": status,
+                "currentTask": task,
+                "name": "Cipher",
+                "role": "Security Auditor",
+                "color": "#8b5cf6"
+            }, timeout=1)
+        except Exception:
+            pass
+
+    def run_intercepted_command(self, cmd_string: str, bypass_policy: bool = False, correlation_id: Optional[str] = None) -> dict[str, Any]:
+        correlation_id = correlation_id or str(uuid.uuid4())
+        _isolation_backend = getattr(self.isolation_adapter, "backend", "sandbox-exec")
+
+        # ── Stage 0: Intake ──────────────────────────────────────────────────
+        audit_logger.log_event(
+            event_type="intake", input_str=cmd_string,
+            correlation_id=correlation_id, stage=STAGE_INTAKE,
+            metadata={"bypass_policy": bypass_policy, "policy_version": POLICY_VERSION},
+        )
+
+        # ── Stage 1: Normalization ────────────────────────────────────────────
+        normalized_cmd = normalizer.normalize(cmd_string)
+        audit_logger.log_event(
+            event_type="normalization", input_str=cmd_string,
+            correlation_id=correlation_id, stage=STAGE_NORMALIZE,
+            normalized_input=normalized_cmd,
+            metadata={"changed": normalized_cmd != cmd_string},
+        )
+
+        # ── Stage 2: Redaction ────────────────────────────────────────────────
+        redacted_cmd = redactor.redact(normalized_cmd)
+        audit_logger.log_event(
+            event_type="redaction", input_str="[REDACTED]",
+            correlation_id=correlation_id, stage=STAGE_REDACT,
+            normalized_input=redacted_cmd,
+            metadata={"redacted": redacted_cmd != normalized_cmd},
+        )
+
+        self._report_status("working", f"Auditing: {str(redacted_cmd)[:30]}...")
+        decision = None
+
+        # ── Stage 3: Policy Evaluation ───────────────────────────────────────
         if not bypass_policy:
-            policy_result = self.policy_enforcer.evaluate(cmd_string)
+            policy_result = self.policy_enforcer.evaluate(normalized_cmd)
             action = policy_result.get("action", "block")
-            
+            audit_logger.log_event(
+                event_type="policy_evaluation", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_POLICY_EVAL,
+                decision=action,
+                reason=policy_result.get("reason"),
+                metadata={
+                    "rule_id": policy_result.get("rule_id"),
+                    "rule_name": policy_result.get("rule_name"),
+                    "provenance": policy_result.get("provenance"),
+                    "category": policy_result.get("category"),
+                    "policy_version": POLICY_VERSION,
+                },
+            )
+
             if action == "block":
                 failed = AuditDecision.reject(
-                    f"Policy Violation: {policy_result.get('rule_name', 'Unknown')} - {policy_result.get('reason', 'Blocked by policy')}", 
-                    risk_score=10
+                    f"Policy Violation: {policy_result.get('rule_name', 'Unknown')} - {policy_result.get('reason', 'Blocked by policy')}",
+                    risk_score=10,
                 )
                 payload = failed.to_dict()
-                payload.update({"returncode": None, "stdout": "", "stderr": ""})
-                _log_audit_event(cmd_string, payload)
+                payload.update({
+                    "returncode": None, "stdout": "", "stderr": "",
+                    "rule_id": policy_result.get("rule_id"),
+                    "provenance": policy_result.get("provenance"),
+                })
+                audit_logger.log_event(
+                    event_type="final_decision", input_str=redacted_cmd,
+                    correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+                    decision="block", reason=failed.reason,
+                    metadata={"risk_score": 10, "returncode": None, "isolation": "not_reached"},
+                )
+                _log_audit_event(redacted_cmd, payload, correlation_id=correlation_id)
                 return payload
 
-            if action == "review":
-                # TODO: Integrate with HITL system. For now, we block with a specific message.
-                failed = AuditDecision.reject(
-                    f"Review Required: {policy_result.get('rule_name', 'Unknown')} - {policy_result.get('reason', 'Requires approval')}", 
-                    risk_score=5
+            if action in ("review", "escalate"):
+                gw = ApprovalGateway()
+                appr_res = gw.request_approval(
+                    command=cmd_string,
+                    correlation_id=correlation_id,
+                    rule_id=policy_result.get("rule_id", "—"),
+                    reason=policy_result.get("reason", "Requires review"),
+                    input_str=redacted_cmd
                 )
-                payload = failed.to_dict()
-                # Mark it as 'review_required' for the API response if we support it in the future
-                payload["status"] = "review_required" 
-                payload.update({"returncode": None, "stdout": "", "stderr": ""})
-                _log_audit_event(cmd_string, payload)
-                return payload
+                if appr_res.get("approved"):
+                    decision = AuditDecision(
+                        allowed=True, risk_score=0,
+                        reason=f"Approved by operator {appr_res.get('actor_id')}: {appr_res.get('override_reason')}"
+                    )
+                else:
+                    failed = AuditDecision.reject(
+                        f"Review Denied: Operator {appr_res.get('actor_id')} rejected execution",
+                        risk_score=10,
+                    )
+                    payload = failed.to_dict()
+                    payload.update({
+                        "returncode": None, "stdout": "", "stderr": "",
+                        "rule_id": policy_result.get("rule_id"),
+                        "provenance": policy_result.get("provenance"),
+                    })
+                    audit_logger.log_event(
+                        event_type="final_decision", input_str=redacted_cmd,
+                        correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+                        decision="block", reason=failed.reason,
+                        metadata={"risk_score": 10, "returncode": None, "isolation": "not_reached"},
+                    )
+                    _log_audit_event(redacted_cmd, payload, correlation_id=correlation_id)
+                    return payload
 
             if action == "allow":
                 decision = AuditDecision(
-                    allowed=True, 
-                    risk_score=0, 
-                    reason=f"Allowed by policy: {policy_result.get('rule_name', 'Policy Allow')}"
+                    allowed=True, risk_score=0,
+                    reason=f"Allowed by policy: {policy_result.get('rule_name', 'Policy Allow')}",
                 )
-                # Fall through to execution logic
-        
+        else:
+            # Bypass path – emit a synthetic policy event
+            audit_logger.log_event(
+                event_type="policy_evaluation", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_POLICY_EVAL,
+                decision="allow", reason="Policy bypassed (HITL approval)",
+                metadata={"rule_id": "hitl-bypass", "policy_version": POLICY_VERSION},
+            )
+
         if decision is None:
             if bypass_policy:
                 decision = AuditDecision(allowed=True, risk_score=0, reason="User Approved via HITL")
             else:
-                # 1. Standard Sentinel Audit
-                decision = self.command_auditor.audit(cmd_string)
-        
+                # ── Stage 4: Semantic Audit ───────────────────────────────────
+                semantic_result = self.command_auditor.audit(normalized_cmd)
+                audit_logger.log_event(
+                    event_type="semantic_audit", input_str=redacted_cmd,
+                    correlation_id=correlation_id, stage=STAGE_SEMANTIC_AUDIT,
+                    decision="allow" if semantic_result.allowed else "block",
+                    reason=semantic_result.reason,
+                    metadata={"risk_score": semantic_result.risk_score},
+                )
+                decision = semantic_result
+        else:
+            # Policy already cleared – emit skip event for completeness
+            audit_logger.log_event(
+                event_type="semantic_audit", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_SEMANTIC_AUDIT,
+                decision="skip", reason="Cleared deterministically; semantic stage skipped",
+                metadata={"risk_score": 0},
+            )
+
         payload: dict[str, Any] = decision.to_dict()
 
         if not decision.allowed:
             payload.update({"returncode": None, "stdout": "", "stderr": ""})
-            _log_audit_event(cmd_string, payload)
+            audit_logger.log_event(
+                event_type="final_decision", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+                decision="block", reason=decision.reason,
+                metadata={"risk_score": decision.risk_score, "returncode": None, "isolation": "not_reached"},
+            )
+            _log_audit_event(redacted_cmd, payload, correlation_id=correlation_id)
             return payload
 
-        # Shell Execution Patch: Detect shell operators (| , > , &&)
-        # If present, use shell=True and pass the full string.
-        # Otherwise, keep the safer shell=False with shlex.split.
+        # ── Stage 5: Isolation Wrapping ───────────────────────────────────────
         shell_operators = {"|", ">", "&&", ";", "<<", ">>"}
         use_shell = any(op in cmd_string for op in shell_operators)
-
         if use_shell:
-            cmd_args = cmd_string
+            cmd_args_for_isolation = ["/bin/sh", "-c", cmd_string]
         else:
             try:
-                cmd_args = shlex.split(cmd_string, posix=True)
+                cmd_args_for_isolation = shlex.split(cmd_string, posix=True)
             except ValueError as exc:
                 failed = AuditDecision.reject(f"Command parsing failed: {exc}", risk_score=10)
                 payload = failed.to_dict()
                 payload.update({"returncode": None, "stdout": "", "stderr": ""})
-                _log_audit_event(cmd_string, payload)
+                audit_logger.log_event(
+                    event_type="final_decision", input_str=redacted_cmd,
+                    correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+                    decision="block", reason=f"Command parse error: {exc}",
+                    metadata={"risk_score": 10, "isolation": "not_reached"},
+                )
+                _log_audit_event(cmd_string, payload, correlation_id=correlation_id)
                 return payload
 
         try:
+            wrapped_cmd = self.isolation_adapter.wrap_command(cmd_args_for_isolation, self.workspace_root)
+        except Exception as exc:
+            failed = AuditDecision.reject(f"Sandbox profile generation failed: {exc}", risk_score=10)
+            payload = failed.to_dict()
+            payload.update({"returncode": None, "stdout": "", "stderr": str(exc)})
+            audit_logger.log_event(
+                event_type="final_decision", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+                decision="block", reason=failed.reason,
+                metadata={"risk_score": 10, "returncode": None, "isolation": "failed"},
+            )
+            _log_audit_event(cmd_string, payload, correlation_id=correlation_id)
+            return payload
+
+        audit_logger.log_event(
+            event_type="isolation_wrap", input_str=redacted_cmd,
+            correlation_id=correlation_id, stage=STAGE_ISOLATION_WRAP,
+            decision="wrapped",
+            metadata={"backend": _isolation_backend, "shell_operator": use_shell, "wrapped_argv": str(wrapped_cmd[:3])},
+        )
+
+        # ── Stage 6: Execution ────────────────────────────────────────────────
+        try:
             completed = subprocess.run(
-                cmd_args,
-                shell=use_shell,
-                check=False,
-                capture_output=True,
-                text=True,
+                wrapped_cmd, shell=False, check=False,
+                capture_output=True, text=True,
                 timeout=self.execution_timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:
@@ -233,33 +411,109 @@ class SentinelRuntime:
                 risk_score=10,
             )
             payload = failed.to_dict()
-            payload.update(
-                {
-                    "returncode": None,
-                    "stdout": exc.stdout or "",
-                    "stderr": exc.stderr or "Execution timeout",
-                }
+            payload.update({"returncode": None, "stdout": exc.stdout or "", "stderr": exc.stderr or "Execution timeout"})
+            audit_logger.log_event(
+                event_type="exec_result", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_EXEC_RESULT,
+                decision="timeout", reason="Execution timed out",
+                metadata={"returncode": None, "timeout_sec": self.execution_timeout_seconds},
             )
-            _log_audit_event(cmd_string, payload)
+            audit_logger.log_event(
+                event_type="final_decision", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+                decision="block", reason=failed.reason,
+                metadata={"risk_score": 10, "returncode": None},
+            )
+            _log_audit_event(cmd_string, payload, correlation_id=correlation_id)
             return payload
         except Exception as exc:
             failed = AuditDecision.reject(f"Command execution failed: {exc}", risk_score=10)
             payload = failed.to_dict()
             payload.update({"returncode": None, "stdout": "", "stderr": str(exc)})
-            _log_audit_event(cmd_string, payload)
+            audit_logger.log_event(
+                event_type="exec_result", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_EXEC_RESULT,
+                decision="error", reason=str(exc),
+                metadata={"returncode": None},
+            )
+            audit_logger.log_event(
+                event_type="final_decision", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+                decision="block", reason=failed.reason,
+                metadata={"risk_score": 10, "returncode": None},
+            )
+            _log_audit_event(cmd_string, payload, correlation_id=correlation_id)
             return payload
 
-        payload.update(
-            {
-                "returncode": completed.returncode,
-                "stdout": completed.stdout,
-                "stderr": completed.stderr,
-            }
+        # ── Stage 7: Execution Result ──────────────────────────────────────────
+        # Detect genuine runtime denial from sandbox exit codes.
+        # macOS sandbox-exec returns 1 when SBPL denies a syscall at runtime.
+        # We surface this as its own STAGE_RUNTIME_DENIAL event so it is
+        # distinct from a policy block and visible in replay.
+        _sandbox_denial = (
+            _isolation_backend == "sandbox-exec"
+            and completed.returncode != 0
+            and completed.returncode is not None
         )
-        _log_audit_event(cmd_string, payload)
+
+        audit_logger.log_event(
+            event_type="exec_result", input_str=redacted_cmd,
+            correlation_id=correlation_id, stage=STAGE_EXEC_RESULT,
+            decision="runtime_denied" if _sandbox_denial else "success",
+            reason=f"Exit code {completed.returncode}",
+            metadata={
+                "returncode": completed.returncode,
+                "stdout_bytes": len(completed.stdout),
+                "stderr_bytes": len(completed.stderr),
+                "sandbox_denial": _sandbox_denial,
+            },
+        )
+
+        if _sandbox_denial:
+            # Emit explicit runtime_denial stage for forensic clarity
+            stderr_snip = completed.stderr[:200] if completed.stderr else ""
+            audit_logger.log_event(
+                event_type="runtime_denial", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage=STAGE_RUNTIME_DENIAL,
+                decision="denied",
+                reason="Sandbox (Seatbelt SBPL) rejected syscall at runtime",
+                metadata={
+                    "returncode": completed.returncode,
+                    "denial_type": "network-outbound" if "network" in stderr_snip.lower() else "sbpl",
+                    "stderr_snippet": stderr_snip,
+                    "backend": _isolation_backend,
+                    "sentinel_version": SENTINEL_VERSION,
+                    "policy_version": POLICY_VERSION,
+                },
+            )
+
+        # ── Stage 8: Final Decision ───────────────────────────────────────────
+        payload.update({"returncode": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr})
+        _final_decision = "runtime_denied" if _sandbox_denial else "allow"
+        _final_reason   = (
+            f"Sandbox denied at runtime (exit {completed.returncode}); policy had allowed"
+            if _sandbox_denial else decision.reason
+        )
+        audit_logger.log_event(
+            event_type="final_decision", input_str=redacted_cmd,
+            correlation_id=correlation_id, stage=STAGE_FINAL_DECISION,
+            decision=_final_decision,
+            reason=_final_reason,
+            metadata={
+                "risk_score": decision.risk_score,
+                "returncode": completed.returncode,
+                "isolation": _isolation_backend,
+                "sandbox_denial": _sandbox_denial,
+            },
+        )
+        _log_audit_event(cmd_string, payload, correlation_id=correlation_id)
+        self._report_status("idle", "Audit complete. Monitoring...")
+        payload["decision"] = _final_decision
+        payload["sandbox_denial"] = _sandbox_denial
+        payload["correlation_id"] = correlation_id
         return payload
 
-    def _resolve_constitution_path(self, constitution_path: str | Path | None) -> Path:
+    def _resolve_constitution_path(self, constitution_path: Union[str, Path, None]) -> Path:
         if constitution_path is not None:
             path = Path(constitution_path)
             if not path.exists():
@@ -280,7 +534,7 @@ class SentinelRuntime:
         )
 
 
-def load_constitution(path: str | Path) -> dict[str, Any]:
+def load_constitution(path: Union[str, Path]) -> dict[str, Any]:
     path_obj = Path(path)
     raw_text = path_obj.read_text(encoding="utf-8")
 
@@ -452,7 +706,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         default=None,
-        help="Gemini model for the SentinelAuditor (defaults to SENTINEL_MODEL or gemini-3-pro-preview).",
+        help="Gemini model for the SentinelAuditor (defaults to SENTINEL_MODEL or google/gemini-3.1-flash-lite-preview).",
     )
 
     args = parser.parse_args()

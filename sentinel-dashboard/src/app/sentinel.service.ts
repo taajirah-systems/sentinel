@@ -15,6 +15,8 @@ export interface AuditLog {
     command: string;
     allowed: boolean;
     timestamp: string;
+    risk_score?: number;
+    reason?: string;
 }
 
 @Injectable({
@@ -50,12 +52,19 @@ export class SentinelService {
         return this.http.post(`${this.apiUrl}/approve/${id}`, {}, { headers: this.getHeaders() });
     }
 
-    // Placeholder until backend supports it
     getAuditLogs(): Observable<AuditLog[]> {
-        // Mock data for now
-        return of([
-            { command: 'ls -la', allowed: true, timestamp: 'Just now' },
-            { command: 'rm -rf /', allowed: false, timestamp: '1m ago' }
-        ]);
+        return this.http.get<AuditLog[]>(`${this.apiUrl}/logs`, { headers: this.getHeaders() }).pipe(
+            map(logs => logs.map(log => ({
+                ...log,
+                timestamp: this.formatDate(log.timestamp)
+            }))),
+            catchError(() => of([]))
+        );
+    }
+
+    private formatDate(timestamp: any): string {
+        if (!timestamp) return 'Unknown';
+        const date = new Date(typeof timestamp === 'number' ? timestamp * 1000 : timestamp);
+        return date.toLocaleString();
     }
 }

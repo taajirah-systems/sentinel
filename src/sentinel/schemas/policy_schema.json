@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sentinel Security Policy",
+  "type": "object",
+  "properties": {
+    "version": { "type": "string" },
+    "default_action": { "type": "string", "enum": ["allow", "block", "review"] },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string", "enum": ["filesystem", "network", "secrets", "shell", "process", "tool"] },
+          "pattern": { "type": "string" },
+          "action": { "type": "string", "enum": ["allow", "block", "review", "escalate"] },
+          "description": { "type": "string" },
+          "provenance": { "type": "string" }
+        },
+        "required": ["name", "pattern", "action", "category"]
+      }
+    }
+  },
+  "required": ["version", "default_action", "rules"]
+}

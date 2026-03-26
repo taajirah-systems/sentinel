@@ -47,13 +47,12 @@ dist/
 build/
 
 Sentinel-Constitution.yaml
-<<<<<<< HEAD
 # Data and Databases
 data/
 *.db
 data/sentinel.db
 
-
+# Agent and MCP Hidden Dirs
 .firecrawl/
 .adal
 .agent
@@ -62,6 +61,7 @@ data/sentinel.db
 .skills-lock.json
 .mcp
 .claude
+.openclaw/
 .augment
 .cline
 .zencoder
@@ -89,14 +89,13 @@ data/sentinel.db
 .qwen
 .roo
 .trae
+
 # Local Sentinel sensitive/config files
 token.json
 rate-limits-models.txt
 skills-lock.json
 dispatch_research.sh
 nightly_memory_sweep.sh
-data/
-logs/
-*.log
-=======
->>>>>>> upstream/master
+
+# Nexus and Integrations
+.gitnexus

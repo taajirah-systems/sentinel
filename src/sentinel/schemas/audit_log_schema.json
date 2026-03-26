@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sentinel Audit Event",
+  "type": "object",
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "correlation_id": { "type": "string" },
+    "event_type": { "type": "string", "enum": ["normalized_input", "rule_match", "llm_audit", "execution_decision", "execution_result", "override"] },
+    "agent_id": { "type": "string" },
+    "input": { "type": "string" },
+    "normalized_input": { "type": "string" },
+    "decision": { "type": "string" },
+    "reason": { "type": "string" },
+    "metadata": { "type": "object" }
+  },
+  "required": ["timestamp", "correlation_id", "event_type", "input"]
+}
