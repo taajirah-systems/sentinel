@@ -26,6 +26,8 @@ from .logger import (
 )
 from .normalizer import normalizer
 from .redactor import redactor
+from src.ledger.ledger_service import spend_service_credit, allocate_internal_credit
+from src.ledger.ledger import read_wallets
 
 try:
     import yaml
@@ -229,6 +231,27 @@ class SentinelRuntime:
             normalized_input=redacted_cmd,
             metadata={"redacted": redacted_cmd != normalized_cmd},
         )
+
+        # ── Stage 2.5: Budget Check ───────────────────────────────────────────
+        actor_id = os.getenv("SENTINEL_ACTOR_ID", "system-agent")
+        # We check for a minimum base cost (e.g. 0.1 JUL) using authoritative cache
+        wallets = read_wallets()
+        balance = wallets.get(actor_id, {}).get("balance_jul", 0.0)
+        if balance < 0.1:
+            failed = AuditDecision.reject(
+                f"Insufficient Credits: Wallet {actor_id} requires more JUL for execution (Balance: {balance})",
+                risk_score=5,
+            )
+            payload = failed.to_dict()
+            payload.update({"returncode": None, "stdout": "", "stderr": "Credit limit reached."})
+            audit_logger.log_event(
+                event_type="budget_denial", input_str=redacted_cmd,
+                correlation_id=correlation_id, stage="budget_check",
+                decision="block", reason=failed.reason,
+                metadata={"risk_score": 5, "actor_id": actor_id},
+            )
+            _log_audit_event(cmd_string, payload, correlation_id=correlation_id)
+            return payload
 
         self._report_status("working", f"Auditing: {str(redacted_cmd)[:30]}...")
         decision = None
@@ -487,7 +510,20 @@ class SentinelRuntime:
                 },
             )
 
-        # ── Stage 8: Final Decision ───────────────────────────────────────────
+        # Record the spend event in the ledger
+        actor_id = os.getenv("SENTINEL_ACTOR_ID", "system-agent")
+        # For now, we use a flat fee or extract from metadata if available
+        # In a real scenario, this might come from the policy or audit decision
+        actual_cost = payload.get("estimated_cost_jul") or 0.1 
+        
+        spend_service_credit(
+            wallet_id=actor_id,
+            amount_jul=actual_cost,
+            correlation_id=correlation_id,
+            description=f"Command: {cmd_args_for_isolation[0] if not use_shell else 'shell-script'}",
+            outcome="completed" if completed.returncode == 0 else "failed"
+        )
+        
         payload.update({"returncode": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr})
         _final_decision = "runtime_denied" if _sandbox_denial else "allow"
         _final_reason   = (
@@ -504,9 +540,11 @@ class SentinelRuntime:
                 "returncode": completed.returncode,
                 "isolation": _isolation_backend,
                 "sandbox_denial": _sandbox_denial,
+                "cost_jul": actual_cost
             },
         )
         _log_audit_event(cmd_string, payload, correlation_id=correlation_id)
+        # Note: Functional spend_service_credit already updates reconciled state
         self._report_status("idle", "Audit complete. Monitoring...")
         payload["decision"] = _final_decision
         payload["sandbox_denial"] = _sandbox_denial

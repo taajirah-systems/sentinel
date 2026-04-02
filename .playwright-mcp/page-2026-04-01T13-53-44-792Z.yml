@@ -1,0 +1,156 @@
+- generic [ref=e2]:
+  - generic:
+    - generic:
+      - generic:
+        - generic: "0"
+        - generic: ∞
+        - generic: Ω
+        - generic: "0"
+        - generic: π
+        - generic: "0"
+        - generic: π
+        - generic: ∫
+        - generic: "1"
+        - generic: ∆
+        - generic: Ω
+        - generic: ∆
+        - generic: ∞
+        - generic: ∫
+        - generic: Σ
+        - generic: Σ
+        - generic: "0"
+        - generic: ∞
+        - generic: Σ
+        - generic: ∫
+        - generic: π
+        - generic: ∞
+        - generic: ∞
+        - generic: π
+        - generic: π
+        - generic: λ
+        - generic: Ω
+        - generic: Σ
+        - generic: "1"
+        - generic: "0"
+  - generic [ref=e5]:
+    - link "Taajirah Systems TAAJIRAH SYSTEMS" [ref=e6] [cursor=pointer]:
+      - /url: /
+      - img "Taajirah Systems" [ref=e7]
+      - generic [ref=e8]: TAAJIRAH SYSTEMS
+    - button [ref=e10] [cursor=pointer]:
+      - img [ref=e11]: menu
+    - link [ref=e15] [cursor=pointer]:
+      - /url: https://wa.me/27827583593?text=I%20would%20like%20to%20book%20an%20on-site%20demo%20for%20NVIDIA%20NemoClaw.
+      - img [ref=e16]: chat
+  - main [ref=e19]:
+    - generic [ref=e21]:
+      - generic [ref=e23]:
+        - heading "Stop Paying for AI. Start Owning Your Infrastructure." [level=1] [ref=e24]:
+          - text: Stop Paying for AI.
+          - text: Start Owning Your Infrastructure.
+        - paragraph [ref=e25]:
+          - text: Hire a Senior Architect with 8 years of engineering experience to deploy a
+          - strong [ref=e26]: Local AI Sandbox
+          - text: on your hardware. 100% Private. 100% POPIA-Safe.
+        - button "Book Your On-Site Strategy & Deployment (R2,500)" [ref=e28]:
+          - generic [ref=e29]: Book Your On-Site Strategy & Deployment (R2,500)
+      - generic [ref=e34]:
+        - iframe [ref=e36]:
+          - generic [active] [ref=f1e1]:
+            - generic "YouTube Video Player" [ref=f1e3]
+            - generic [ref=f1e5]:
+              - generic:
+                - generic:
+                  - button "Play video" [ref=f1e10] [cursor=pointer]
+                  - button "Hide player controls" [ref=f1e12] [cursor=pointer]
+                  - generic [ref=f1e14]:
+                    - generic [ref=f1e19]:
+                      - generic [ref=f1e20]:
+                        - link "The Sovereign Laptop Supercharge Escaping the Cloud AI Trap" [ref=f1e21] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=u9vgqyXlhyE
+                        - link "Taajirah Systems" [ref=f1e22] [cursor=pointer]:
+                          - /url: /channel/UCEWHZPduLn3uc2PMPrVc4rg
+                          - generic [ref=f1e23]: Taajirah Systems
+                      - generic [ref=f1e24]:
+                        - button [ref=f1e25] [cursor=pointer]
+                        - generic [ref=f1e27]:
+                          - generic: Taajirah Systems
+                          - generic: 1 subscriber
+                    - generic [ref=f1e28]:
+                      - button "Share" [ref=f1e31] [cursor=pointer]:
+                        - generic [ref=f1e35]:
+                          - img
+                      - link "Watch on YouTube" [ref=f1e42] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=u9vgqyXlhyE
+                        - generic [ref=f1e45]:
+                          - text: Watch on
+                          - img [ref=f1e47]:
+                            - generic [ref=f1e49]:
+                              - img
+        - generic [ref=e38]:
+          - generic [ref=e39]: The Sovereign Laptop Supercharge
+          - generic [ref=e40]: Escaping the Cloud AI Trap with Local Intelligence
+        - paragraph [ref=e42]: Watch how we transform standard hardware into a high-performance, private AI workstation. No data logging. No subscription traps. Just pure, sovereign architecture.
+      - generic [ref=e45]: LOADING ARCHITECT PROFILE...
+      - generic [ref=e47]:
+        - heading "THE SOVEREIGN CONDUIT" [level=2] [ref=e48]
+        - paragraph [ref=e49]: Bridging the gap between AI hype and real-world utility.
+        - generic [ref=e51]: LOADING ARCHITECTURE DIAGRAM...
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - generic [ref=e55]: 🧠
+              - generic [ref=e57]: 1M Token Context
+            - paragraph [ref=e59]: Audit years of complex records instantly with massive reasoning windows.
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - generic [ref=e62]: 🛡️
+              - generic [ref=e64]: Local Sandbox
+            - paragraph [ref=e66]: Your data is 'caged' via OpenShell on local silicon. Zero external exposure.
+          - generic [ref=e67]:
+            - generic [ref=e68]:
+              - generic [ref=e69]: 💡
+              - generic [ref=e71]: Expert Advisory
+            - paragraph [ref=e73]: Senior strategic guidance to solve your most expensive manual bottlenecks.
+      - generic [ref=e75]:
+        - heading "STRATEGY SESSION" [level=3] [ref=e76]
+        - generic [ref=e77]:
+          - generic [ref=e78]: R2,500
+          - generic [ref=e79]: PER SESSION
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - generic [ref=e82]: ✓
+            - generic [ref=e83]: 60-Minute Local AI Audit
+          - generic [ref=e84]:
+            - generic [ref=e85]: ✓
+            - generic [ref=e86]: Hardware Optimization Plan
+          - generic [ref=e87]:
+            - generic [ref=e88]: ✓
+            - generic [ref=e89]: Data Privacy Guardrail Design
+          - generic [ref=e90]:
+            - generic [ref=e91]: ✓
+            - generic [ref=e92]: Custom LLM Deployment Map
+        - button "BOOK YOUR SESSION" [ref=e93] [cursor=pointer]
+  - contentinfo [ref=e95]:
+    - generic [ref=e96]:
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - img "Taajirah Systems" [ref=e99]
+          - generic [ref=e100]: TAAJIRAH SYSTEMS
+        - paragraph [ref=e101]: Engineered in South Africa.
+        - paragraph [ref=e102]: Serving Roodepoort, JHB, and Sandton corridors.
+        - paragraph [ref=e103]: NVIDIA NemoClaw Implementation Partner (Independent)
+        - generic [ref=e104]:
+          - link "TERMS" [ref=e105] [cursor=pointer]:
+            - /url: /terms
+          - link "PRIVACY" [ref=e106] [cursor=pointer]:
+            - /url: /privacy
+      - paragraph [ref=e108]: © 2026 TAAJIRAH SYSTEMS. ALL RIGHTS RESERVED.
+  - generic [ref=e110]:
+    - paragraph [ref=e112]:
+      - text: WE USE ESSENTIAL COOKIES FOR SOVEREIGN PERFORMANCE.
+      - link "LEARN MORE" [ref=e113] [cursor=pointer]:
+        - /url: /privacy
+    - generic [ref=e114]:
+      - button "NECESSARY ONLY" [ref=e115] [cursor=pointer]
+      - button "ACCEPT ALL" [ref=e116] [cursor=pointer]

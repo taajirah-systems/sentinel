@@ -1,0 +1,281 @@
+<div class="console-container">
+  
+  <!-- SIDE NAVIGATION -->
+  <aside class="side-nav">
+    <div class="brand">
+      <div class="brand-logo">S</div>
+      <span class="brand-name">Sentinel</span>
+    </div>
+
+    <nav class="nav-links">
+      <button class="nav-item" [class.active]="activeTab === 'overview'" (click)="setTab('overview')">
+        <i class="icon">📊</i> Overview
+      </button>
+      <button class="nav-item" [class.active]="activeTab === 'approvals'" (click)="setTab('approvals')">
+        <i class="icon">🛡️</i> Approval Queue
+        <span class="nav-badge" *ngIf="pendingCount > 0">{{ pendingCount }}</span>
+      </button>
+      <button class="nav-item" [class.active]="activeTab === 'analytics'" (click)="setTab('analytics')">
+        <i class="icon">📈</i> Spend Analytics
+      </button>
+      <button class="nav-item" [class.active]="activeTab === 'compliance'" (click)="setTab('compliance')">
+        <i class="icon">⚖️</i> Compliance
+      </button>
+      <button class="nav-item" [class.active]="activeTab === 'treasury'" (click)="setTab('treasury')">
+        <i class="icon">🏦</i> Treasury
+      </button>
+      <button class="nav-item" [class.active]="activeTab === 'exceptions'" (click)="setTab('exceptions')">
+        <i class="icon">⚠️</i> Exceptions
+        <span class="nav-badge" style="background: var(--status-rejected);" *ngIf="exceptions.length > 0">{{ exceptions.length }}</span>
+      </button>
+      <button class="nav-item" [class.active]="activeTab === 'hierarchy'" (click)="setTab('hierarchy')">
+        <i class="icon">🌳</i> Hierarchy
+      </button>
+    </nav>
+
+    <div style="margin-top: auto; padding-top: 24px; border-top: 1px solid var(--border-color);">
+      <div class="live-status" style="font-size: 11px; color: var(--status-approved); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <span style="width: 8px; height: 8px; background: var(--status-approved); border-radius: 50%;"></span>
+        LEDGER_ONLINE
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="main-content">
+    
+    <!-- PAGE HEADER -->
+    <header class="page-header">
+      <h1 class="page-title">{{ activeTab | uppercase }}</h1>
+      <p class="page-subtitle" *ngIf="activeTab === 'overview'">Operational summary of Sentinel AIOps and Governance.</p>
+      <p class="page-subtitle" *ngIf="activeTab === 'approvals'">Pending agent actions requiring human-in-the-loop validation.</p>
+      <p class="page-subtitle" *ngIf="activeTab === 'analytics'">Detailed breakdown of resource consumption and efficiency.</p>
+      <p class="page-subtitle" *ngIf="activeTab === 'compliance'">Contractor KYC verification and reputation oversight.</p>
+      <p class="page-subtitle" *ngIf="activeTab === 'treasury'">Administrative budget allocations and funding controls.</p>
+      <p class="page-subtitle" *ngIf="activeTab === 'exceptions'">Forensic event stream of budget anomalies and integrity violations.</p>
+      <p class="page-subtitle" *ngIf="activeTab === 'hierarchy'">Multi-tenant budget structure (Org -> Project -> Agent).</p>
+    </header>
+
+    <!-- 1. OVERVIEW SCREEN -->
+    <div class="view-container" *ngIf="activeTab === 'overview'">
+      <div class="metrics-grid" *ngIf="spendAnalytics">
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-label">Total Consumption</span></div>
+          <div class="stat-value">{{ spendAnalytics.summary.total_spend_jul | number:'1.2-4' }}<span style="font-size: 14px; margin-left: 4px; color: var(--text-muted);">JUL</span></div>
+          <div class="stat-trend trend-up">↑ 12% vs last 24h</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-label">Waste/Correction Ratio</span></div>
+          <div class="stat-value">{{ spendAnalytics.summary.waste_ratio | percent:'1.1-1' }} / {{ spendAnalytics.summary.correction_ratio | percent:'1.1-1' }}</div>
+          <div class="stat-trend trend-down">↓ 3% improvement</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-label">Pending Reviews</span></div>
+          <div class="stat-value">{{ pendingCount }}</div>
+          <div class="stat-trend" style="color: var(--text-muted);">TTL Average: 12m</div>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <h2 style="padding: 24px; font-size: 14px; border-bottom: 1px solid var(--border-color);">RECENT GOVERNANCE DECISIONS</h2>
+        <table class="governance-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>AGENT</th>
+              <th>WALLET</th>
+              <th>STATUS</th>
+              <th class="text-right">RESOLVED</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let h of approvalsHistory.slice(0,8)">
+              <td class="id-cell">{{ h.id }}</td>
+              <td>{{ h.agent_id }}</td>
+              <td class="font-mono text-muted">{{ h.wallet_id }}</td>
+              <td><span class="status-pill" [ngClass]="h.status">{{ h.status }}</span></td>
+              <td class="text-right font-mono" style="font-size: 12px; color: var(--text-muted);">{{ h.created_at * 1000 | date:'shortTime' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 2. APPROVAL QUEUE SCREEN -->
+    <div class="view-container" *ngIf="activeTab === 'approvals'">
+      <div class="table-container">
+        <table class="governance-table">
+          <thead>
+            <tr>
+              <th>Request ID</th>
+              <th>Action/Command</th>
+              <th>Cost (JUL)</th>
+              <th>Risk</th>
+              <th>Status</th>
+              <th class="text-right">Operations</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let req of approvalsHistory">
+              <td class="id-cell">{{ req.id }}</td>
+              <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <code style="color: var(--status-pending);">{{ req.command }}</code>
+              </td>
+              <td class="font-mono">{{ req.estimated_cost_jul | number:'1.2-4' }}</td>
+              <td><span [style.color]="req.risk_score > 5 ? 'var(--status-rejected)' : 'var(--status-approved)'" style="font-weight: 800;">{{ req.risk_score }}</span></td>
+              <td><span class="status-pill" [ngClass]="req.status">{{ req.status }}</span></td>
+              <td class="text-right">
+                <div *ngIf="req.status === 'pending'">
+                  <button class="btn-primary" (click)="resolveApproval(req.id, 'APPROVE')" style="background: var(--status-approved); color: white; margin-right: 8px;">APPROVE</button>
+                  <button class="btn-primary" (click)="resolveApproval(req.id, 'DENY')" style="background: var(--status-rejected); color: white;">DENY</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. SPEND ANALYTICS SCREEN -->
+    <div class="view-container" *ngIf="activeTab === 'analytics'">
+      <div class="metrics-grid" *ngIf="spendAnalytics">
+        <div class="stat-card">
+          <div class="stat-label" style="margin-bottom: 12px;">Successful Task Efficiency</div>
+          <div class="stat-value">{{ spendAnalytics.summary.cost_per_success_jul | number:'1.2-4' }}<span style="font-size: 14px; margin-left: 4px; color: var(--text-muted);">JUL / Success</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="margin-bottom: 12px;">Resource Burn Outcome</div>
+          <div style="font-size: 14px; display: flex; gap: 16px;">
+             <span>Success: <b>{{ spendAnalytics.counts.success_tasks }}</b></span>
+             <span>Failed: <b>{{ spendAnalytics.counts.total_tasks - spendAnalytics.counts.success_tasks }}</b></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;" *ngIf="spendAnalytics">
+        <div class="table-container">
+          <h3 style="padding: 16px; font-size: 12px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border-color);">SPEND BY PROJECT</h3>
+          <table class="governance-table">
+            <tbody>
+              <tr *ngFor="let p of spendAnalytics.breakdown.by_project | keyvalue">
+                <td>{{ p.key }}</td>
+                <td class="text-right font-mono">{{ p.value | number:'1.2-4' }} JUL</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-container">
+          <h3 style="padding: 16px; font-size: 12px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border-color);">SPEND BY AGENT</h3>
+          <table class="governance-table">
+            <tbody>
+              <tr *ngFor="let a of spendAnalytics.breakdown.by_agent | keyvalue">
+                <td class="font-mono" style="font-size: 12px;">{{ a.key }}</td>
+                <td class="text-right font-mono">{{ a.value | number:'1.2-4' }} JUL</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. COMPLIANCE SCREEN -->
+    <div class="view-container" *ngIf="activeTab === 'compliance'">
+       <div class="table-container">
+         <table class="governance-table">
+           <thead>
+             <tr>
+               <th>CONTRACTOR</th>
+               <th>KYC STATUS</th>
+               <th>CONTRACT</th>
+               <th>REPUTATION</th>
+               <th class="text-right">SETTLEMENT LIMIT (ZAR)</th>
+             </tr>
+           </thead>
+           <tbody>
+             <tr *ngFor="let c of complianceWallets">
+                <td class="font-mono" style="font-weight: 600;">{{ c.id }}</td>
+                <td>
+                  <span class="status-pill approved" *ngIf="c.kyc_verified">VERIFIED</span>
+                  <span class="status-pill rejected" *ngIf="!c.kyc_verified">UNVERIFIED</span>
+                </td>
+                <td>
+                  <span class="status-pill approved" *ngIf="c.contract_active">ACTIVE</span>
+                  <span class="status-pill expired" *ngIf="!c.contract_active">INACTIVE</span>
+                </td>
+                <td>
+                   <div style="width: 100px; height: 6px; background: var(--bg-card); border-radius: 3px; position: relative; overflow: hidden;">
+                      <div [style.width.%]="(c.reputation_score / 2) * 100" style="height: 100%; background: var(--status-approved);"></div>
+                   </div>
+                   <div style="font-size: 10px; margin-top: 4px; color: var(--text-muted);">{{ c.reputation_score | number:'1.2-2' }} INDEX</div>
+                </td>
+                <td class="text-right font-mono">R {{ c.monthly_settlement_limit_zar | number:'1.2-2' }}</td>
+             </tr>
+           </tbody>
+         </table>
+       </div>
+    </div>
+
+    <!-- 6. EXCEPTIONS SCREEN -->
+    <div class="view-container" *ngIf="activeTab === 'exceptions'">
+       <div class="table-container">
+          <table class="governance-table">
+            <thead>
+              <tr>
+                <th>TIMESTAMP</th>
+                <th>TYPE</th>
+                <th>DESCRIPTION</th>
+                <th>TARGET</th>
+                <th class="text-right">OPERATION</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let ex of exceptions">
+                <td class="font-mono" style="font-size: 11px;">{{ (ex.timestamp || ex._written_at) | date:'short' }}</td>
+                <td>
+                  <span class="status-pill" [ngClass]="ex.event_type === 'budget_shortfall' ? 'rejected' : 'expired'">
+                    {{ (ex.event_type || ex.violation_type) | uppercase }}
+                  </span>
+                </td>
+                <td style="max-width: 400px; font-size: 13px;">{{ ex.description }}</td>
+                <td class="font-mono text-muted">{{ ex.from_wallet || ex.target_id }}</td>
+                <td class="text-right">
+                  <div *ngIf="ex.metadata?.hold_id">
+                     <button class="btn-primary" (click)="resolveHold(ex.metadata.hold_id, 'settle_override')" style="background: var(--status-approved); margin-right: 8px;">SETTLE</button>
+                     <button class="btn-primary" (click)="resolveHold(ex.metadata.hold_id, 'release')" style="background: var(--status-rejected);">RELEASE</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+       </div>
+    </div>
+
+    <!-- 7. HIERARCHY SCREEN -->
+    <div class="view-container" *ngIf="activeTab === 'hierarchy'">
+       <div class="table-container" style="padding: 24px;">
+           <div class="hierarchy-tree">
+              <ng-container *ngTemplateOutlet="recursiveList; context:{ $implicit: walletHierarchy }"></ng-container>
+           </div>
+       </div>
+
+       <ng-template #recursiveList let-list>
+          <div class="tree-branch" *ngFor="let node of list">
+            <div class="tree-node">
+              <span class="node-icon">{{ node.children.length > 0 ? '📂' : '👤' }}</span>
+              <span class="node-id">{{ node.id }}</span>
+              <span class="node-name">({{ node.name }})</span>
+              
+              <div class="node-metrics">
+                 <span class="metric-available">AVAIL: {{ node.available_jul | number:'1.2-4' }}</span>
+                 <span class="metric-held">HELD: {{ node.held_jul | number:'1.2-4' }}</span>
+              </div>
+            </div>
+            <div class="tree-children" *ngIf="node.children.length > 0">
+              <ng-container *ngTemplateOutlet="recursiveList; context:{ $implicit: node.children }"></ng-container>
+            </div>
+          </div>
+       </ng-template>
+    </div>
+
+  </main>
+</div>

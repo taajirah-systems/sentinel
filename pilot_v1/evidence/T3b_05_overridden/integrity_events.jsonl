@@ -1,0 +1,1 @@
+{"event_id": "intg_16c051784c434164", "timestamp": "2026-04-01T17:58:39.924059+00:00", "violation_type": "INVALID_STATE_TRANSITION", "target_id": "hold_0853aad8163e4499", "description": "Attempted to settle hold in settled state", "metadata": {"attempted_transition": "settled -> settled"}, "_written_at": "2026-04-01T17:58:39.924066+00:00"}

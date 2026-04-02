@@ -1,0 +1,28 @@
+{
+  "org_pilot": {
+    "wallet_id": "org_pilot",
+    "wallet_type": "org",
+    "balance_jul": 5000.0,
+    "held_jul": 0.0,
+    "created_at": "2026-04-01T17:58:39.649818+00:00",
+    "last_reconciled_at": "2026-04-01T17:58:39.649818+00:00"
+  },
+  "proj_pilot": {
+    "wallet_id": "proj_pilot",
+    "parent_wallet_id": "org_pilot",
+    "wallet_type": "project",
+    "balance_jul": 1000.0,
+    "held_jul": 0.0,
+    "created_at": "2026-04-01T17:58:39.649818+00:00",
+    "last_reconciled_at": "2026-04-01T17:58:39.649818+00:00"
+  },
+  "agent_coder": {
+    "wallet_id": "agent_coder",
+    "parent_wallet_id": "proj_pilot",
+    "wallet_type": "agent",
+    "balance_jul": 251.5,
+    "held_jul": 0.0,
+    "created_at": "2026-04-01T17:58:39.649818+00:00",
+    "last_reconciled_at": "2026-04-01T17:58:39.649818+00:00"
+  }
+}

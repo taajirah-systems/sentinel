@@ -1,0 +1,15 @@
+{
+  "id": "hold_2456c2c54755409a",
+  "request_id": "req_ev1",
+  "wallet_id": "agent_007",
+  "amount_jul": 1.0,
+  "status": "settled",
+  "created_at": 1774986517.416042,
+  "project_id": "proj_alpha",
+  "org_id": "org_hq",
+  "expires_at": null,
+  "resolved_at": 1774986517.417886,
+  "actual_amount_jul": 0.8,
+  "surplus_released_jul": 0.2,
+  "status_reason": null
+}

@@ -20,7 +20,7 @@ import uuid
 import httpx
 from typing import Any, Dict, List, Optional, Union
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -28,10 +28,16 @@ from pydantic import BaseModel
 
 # Import the Sentinel runtime
 from src.sentinel.main import SentinelRuntime, AuditDecision
-from src.sentinel.approvals import ApprovalManager, PendingRequest
+from src.governance.approvals import ApprovalManager, PendingRequest
 from src.sentinel.logger import audit_logger
 from src.sentinel.redactor import redactor
 from src.sentinel.inference_broker import inference_broker
+
+# --- Sentinel AIOps & Governance Imports ---
+from src.ledger.ledger_service import allocate_internal_credit, allocate_service_credit, spend_service_credit
+from src.ledger.ledger import read_wallets, ACCOUNTING_LOG
+from src.ledger.oracle import get_current_rate
+from src.analytics.aggregator import AnalyticsAggregator
 
 app = FastAPI(
     title="Sentinel Security Gateway",
@@ -41,9 +47,9 @@ app = FastAPI(
 
 
 def _parse_allowed_origins() -> list[str]:
-    raw = os.getenv("SENTINEL_ALLOWED_ORIGINS", "http://localhost,http://127.0.0.1")
+    raw = os.getenv("SENTINEL_ALLOWED_ORIGINS", "http://localhost,http://127.0.0.1,http://localhost:4200")
     origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
-    return origins or ["http://localhost", "http://127.0.0.1"]
+    return origins or ["http://localhost", "http://127.0.0.1", "http://localhost:4200"]
 
 
 def _requires_auth() -> bool:
@@ -70,11 +76,17 @@ app.mount("/dashboard", StaticFiles(directory="web/dist/browser", html=True), na
 # Initialize the Sentinel runtime once at startup
 runtime: Optional[SentinelRuntime] = None
 approval_manager = ApprovalManager()
+analytics_aggregator = AnalyticsAggregator()
 
 
 class AuditRequest(BaseModel):
     """Request body for command auditing."""
     command: str
+    agent_id: str
+    wallet_id: Optional[str] = None
+    project_id: Optional[str] = "default"
+    estimated_cost_jul: Optional[float] = 0.0
+    risk_score: Optional[int] = None
 
 
 class AuditResponse(BaseModel):
@@ -146,6 +158,7 @@ def audit_command(request: AuditRequest, x_sentinel_token: Optional[str] = Heade
         raise HTTPException(status_code=503, detail="Sentinel runtime not initialized")
 
     _verify_auth(x_sentinel_token)
+    start_time = time.time()
     
     if not request.command or not request.command.strip():
         return {
@@ -166,8 +179,13 @@ def audit_command(request: AuditRequest, x_sentinel_token: Optional[str] = Heade
         if result.get("status") == "review_required":
             req_id = approval_manager.create_request(
                 command=request.command, 
-                rule_name="Policy Review", # We could extract this if we parsed the reason
-                reason=result.get("reason", "Requires approval")
+                rule_name="Policy Review",
+                reason=result.get("reason", "Requires approval"),
+                wallet_id=request.wallet_id or request.agent_id,
+                agent_id=request.agent_id,
+                project_id=request.project_id or "default",
+                estimated_cost_jul=request.estimated_cost_jul or 0.0,
+                risk_score=result.get("risk_score", request.risk_score or 0)
             )
             result["reason"] = f"{result.get('reason')} [Request ID: {req_id}]"
             print(f"⚠️  Review Required. Request ID: {req_id}")
@@ -210,9 +228,16 @@ async def chat_proxy(request: ChatCompletionRequest, x_sentinel_token: Optional[
 
     _verify_auth(x_sentinel_token)
 
+    # --- Epic 1: Sovereign Scrub Middleware ---
+    # Intercept and sanitize all incoming agent messages BEFORE they hit the cloud
+    for msg in request.messages:
+        if msg.content:
+            clean_text, metrics = scrub_payload(msg.content)
+            if metrics.get("estimated_tokens_saved", 0) > 0 or metrics.get("redactions_applied"):
+                 print(f"🛡️ [SCRUB] Saved {metrics.get('estimated_tokens_saved', 0)} tokens. Redactions: {metrics.get('redactions_applied', {})}")
+            msg.content = clean_text
+
     # 1. Extract Prompt for Auditing
-    # We audit the full conversation or just the last user message?
-    # For now, let's audit the entire context joined by newlines.
     full_prompt = "\n".join([f"{m.role}: {m.content}" for m in request.messages])
     
     # 2. Pre-Inference Audit
@@ -295,6 +320,28 @@ async def chat_proxy(request: ChatCompletionRequest, x_sentinel_token: Optional[
             
             # Return redacted content to the agent
             redacted_content = redactor.redact(shaped_response.get("content", ""))
+            
+            # --- Sentinel AIOps: Record Agent Spend ---
+            # Automatically account for the cost of this inference as "Utility" spend
+            usage = shaped_response.get("usage", {})
+            total_tokens = usage.get("total_tokens", 0)
+            if total_tokens > 0:
+                try:
+                    # Map tokens to internal AIOps credits (JOULE)
+                    # 1000 tokens = ~0.01 JOULE (Example calculation)
+                    estimated_jul = (total_tokens / 1000) * 0.01 
+                    
+                    record_agent_spend(
+                        agent_id="+27658623499", # Project default agent
+                        amount_jul=round(estimated_jul, 6),
+                        category="utility",
+                        project_id="taajirah_internal",
+                        agent_run_id=str(correlation_id),
+                        notes=f"Inference: {model_name}"
+                    )
+                except Exception as e:
+                    print(f"⚠️ [AIOps] Failed to record agent spend: {e}")
+
             return {
                 "id": shaped_response.get("id"),
                 "choices": [{"message": {"content": redacted_content}}],
@@ -313,7 +360,12 @@ def list_pending_requests(x_sentinel_token: Optional[str] = Header(default=None)
 
 
 @app.post("/approve/{request_id}")
-def approve_request(request_id: str, x_sentinel_token: Optional[str] = Header(default=None)):
+def approve_request(
+    request_id: str, 
+    actor_id: str = "human_operator",
+    reason: str = "Manual Approval",
+    x_sentinel_token: Optional[str] = Header(default=None)
+):
     """Approve and execute a pending request."""
     _verify_auth(x_sentinel_token)
     
@@ -324,7 +376,24 @@ def approve_request(request_id: str, x_sentinel_token: Optional[str] = Header(de
     if req.status != "pending":
         raise HTTPException(status_code=400, detail=f"Request is already {req.status}")
     
-    print(f"✅ Approving request {request_id}: {req.command}")
+    # Check expiry
+    if time.time() > req.expires_at:
+        approval_manager.cleanup_old_requests() # Triggers purge
+        raise HTTPException(status_code=410, detail="Request has expired")
+
+    print(f"✅ Approving request {request_id} by {actor_id}: {req.command}")
+    
+    # --- Sentinel AIOps: Reward Human Oversight ---
+    try:
+        allocate_internal_credit(
+            wallet_id=actor_id, 
+            contribution_type="verification",
+            correlation_id=request_id,
+            approved_by="system",
+            notes=f"Validated command: {req.command[:30]}..."
+        )
+    except Exception as e:
+        print(f"⚠️ [AIOps] Failed to allocate oversight credit: {e}")
     
     # Execute with policy bypass
     try:
@@ -332,7 +401,7 @@ def approve_request(request_id: str, x_sentinel_token: Optional[str] = Header(de
              raise HTTPException(status_code=503, detail="Sentinel runtime not initialized")
              
         result = runtime.run_intercepted_command(req.command, bypass_policy=True)
-        approval_manager.resolve_request(request_id, "approved")
+        approval_manager.resolve_request(request_id, "approved", actor_id=actor_id, reason=reason)
         return result
     except Exception as e:
         print(f"❌ Execution failed for approved request {request_id}: {e}")
@@ -346,6 +415,345 @@ def get_audit_logs(limit: int = 50, x_sentinel_token: Optional[str] = Header(def
     
     # In v2.2, we use JSONL file logs. This endpoint could be extended to read them.
     return {"message": "Logs are available at sentinel/logs/audit_structured.jsonl"}
+
+
+# --- JOULE Admin Dashboard Routes ---
+
+@app.get("/api/admin/wallets")
+def admin_get_wallets(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Return all wallets and their balances."""
+    _verify_auth(x_sentinel_token)
+    return {"wallets": read_wallets()}
+
+@app.get("/api/admin/transactions")
+def admin_get_transactions(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Read the transaction JSONL log."""
+    _verify_auth(x_sentinel_token)
+    txs = []
+    if TRANSACTION_LOG.exists():
+        with open(TRANSACTION_LOG, "r") as f:
+            for line in f:
+                if line.strip():
+                    txs.append(json.loads(line))
+    # Return newest first
+    return {"transactions": list(reversed(txs))}
+
+@app.post("/api/admin/settlements/{request_id}/approve")
+def admin_approve_settlement_route(request_id: str, x_sentinel_token: Optional[str] = Header(default=None)):
+    """Approve a pending withdrawal/settlement request."""
+    _verify_auth(x_sentinel_token)
+    try:
+        from src.ledger.wallet import approve_withdrawal
+        updated_event = approve_withdrawal(request_id, approved_by="admin_dashboard")
+        return {"status": "success", "event": updated_event}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/admin/oracle")
+def admin_get_oracle(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Return live AIOps settlement index."""
+    _verify_auth(x_sentinel_token)
+    return {
+        "zar_rate": get_current_rate(),
+        "description": "Administrative compute metering index (1 JOULE = 1 ZAR)",
+        "last_updated": datetime.now(timezone.utc).isoformat()
+    }
+
+class AllocationRequest(BaseModel):
+    recipient: str
+    amount_jul: float
+    reference: str = ""
+
+@app.post("/api/admin/treasury/allocate")
+def admin_allocate_treasury(payload: AllocationRequest, x_sentinel_token: Optional[str] = Header(default=None)):
+    """Allocate new service credits into an entity's wallet based on actual fiat deposits."""
+    _verify_auth(x_sentinel_token)
+    try:
+        if payload.amount_jul <= 0:
+            raise ValueError("Allocation amount must be > 0")
+        
+        record = allocate_service_credit(
+            wallet_id=payload.recipient,
+            amount_jul=payload.amount_jul,
+            approved_by="admin_dashboard",
+            reference=payload.reference or str(uuid.uuid4())
+        )
+        return {"status": "success", "issuance": record}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+class ComplianceUpdateRequest(BaseModel):
+    wallet_id: str
+    actor_id: str
+    reason: str
+    kyc_verified: Optional[bool] = None
+    contract_active: Optional[bool] = None
+    reputation_score: Optional[float] = None
+    monthly_settlement_limit_zar: Optional[float] = None
+    budget_limit_jul: Optional[float] = None
+
+@app.post("/api/admin/wallets/compliance/update")
+def admin_compliance_update(payload: ComplianceUpdateRequest, x_sentinel_token: Optional[str] = Header(default=None)):
+    """Update a wallet's compliance flags and limits using strictly audited events."""
+    _verify_auth(x_sentinel_token)
+    from src.ledger.ledger import read_wallets, write_wallets, write_compliance_event
+    from datetime import datetime, timezone
+    
+    if not payload.actor_id:
+        raise HTTPException(status_code=400, detail="ERR_ADMIN_AUTH_REQUIRED: actor_id is required.")
+    if not payload.reason:
+        raise HTTPException(status_code=400, detail="ERR_REASON_REQUIRED: A valid semantic reason is required.")
+        
+    wallets = read_wallets()
+    if payload.wallet_id not in wallets:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+        
+    wallet = wallets[payload.wallet_id]
+    old_state = wallet.copy()
+    
+    updates = {}
+    if payload.kyc_verified is not None and wallet.get("kyc_verified") != payload.kyc_verified:
+        updates["kyc_verified"] = payload.kyc_verified
+    if payload.contract_active is not None and wallet.get("contract_active") != payload.contract_active:
+        updates["contract_active"] = payload.contract_active
+    if payload.reputation_score is not None and wallet.get("reputation_score") != payload.reputation_score:
+        updates["reputation_score"] = payload.reputation_score
+        wallet["reputation_last_updated_at"] = datetime.now(timezone.utc).isoformat()
+        wallet["reputation_last_updated_by"] = payload.actor_id
+    if payload.monthly_settlement_limit_zar is not None and wallet.get("monthly_settlement_limit_zar") != payload.monthly_settlement_limit_zar:
+        updates["monthly_settlement_limit_zar"] = payload.monthly_settlement_limit_zar
+    if payload.budget_limit_jul is not None and wallet.get("budget_limit_jul") != payload.budget_limit_jul:
+        updates["budget_limit_jul"] = payload.budget_limit_jul
+        
+    if not updates:
+        return {"status": "unchanged", "wallet": wallet}
+        
+    for k, v in updates.items():
+        wallet[k] = v
+        
+    wallet["compliance_last_updated_at"] = datetime.now(timezone.utc).isoformat()
+    wallet["compliance_last_updated_by"] = payload.actor_id
+        
+    # Append-only ledger event
+    write_compliance_event({
+        "event_type": "admin_compliance_update",
+        "timestamp": wallet["compliance_last_updated_at"],
+        "actor_id": payload.actor_id,
+        "wallet_id": payload.wallet_id,
+        "reason": payload.reason,
+        "old_values": {k: old_state.get(k) for k in updates.keys()},
+        "new_values": updates
+    })
+    
+    write_wallets(wallets)
+    return {
+        "status": "success", 
+        "wallet_id": payload.wallet_id,
+        "updates": updates,
+        "old_state": old_state,
+        "new_state": wallet
+    }
+# --- Governance Approval Gateway Endpoints ---
+
+@app.get("/api/admin/governance/requests")
+def admin_list_governance_requests(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch pending machine actions requiring human approval."""
+    _verify_auth(x_sentinel_token)
+    return {"requests": list(approval_manager.list_pending().values())}
+
+class GovernanceResolveRequest(BaseModel):
+    request_id: str
+    decision: str # APPROVE or DENY
+    actor_id: str
+    notes: str = ""
+
+@app.post("/api/admin/governance/resolve")
+def admin_resolve_governance_route(payload: GovernanceResolveRequest, x_sentinel_token: Optional[str] = Header(default=None)):
+    """Human decision on a pending agent action."""
+    _verify_auth(x_sentinel_token)
+    try:
+        # Map Decision to status
+        status = "approved" if payload.decision.upper() == "APPROVE" else "rejected"
+        res = approval_manager.resolve_request(
+            req_id=payload.request_id,
+            status=status,
+            actor_id=payload.actor_id,
+            reason=payload.notes or "Admin Decision"
+        )
+        return {"status": "success", "resolved": res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- New Oversight Console Endpoints ---
+
+@app.get("/api/admin/analytics/spend")
+def admin_get_spend_analytics(
+    start_ts: float = 0.0, 
+    end_ts: float = float('inf'),
+    x_sentinel_token: Optional[str] = Header(default=None)
+):
+    """Aggregation endpoint for spend efficiency and project/agent metrics."""
+    _verify_auth(x_sentinel_token)
+    return analytics_aggregator.get_spend_operations_report(start_ts, end_ts)
+
+@app.get("/api/admin/wallets/compliance")
+def admin_get_compliance_wallets(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Filtered view of contractor wallets for compliance oversight."""
+    _verify_auth(x_sentinel_token)
+    all_wallets = read_wallets()
+    contractors = {
+        wid: w for wid, w in all_wallets.items() 
+        if w.get("wallet_type") == "contractor"
+    }
+    return {"contractors": contractors}
+
+@app.get("/api/admin/governance/history")
+def admin_get_governance_history(limit: int = 100, x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch full history of governance decisions and expirations."""
+    _verify_auth(x_sentinel_token)
+    _verify_auth(x_sentinel_token)
+    return {"history": approval_manager.list_all(limit=limit)}
+
+
+@app.get("/api/admin/holds/active")
+def admin_get_active_holds(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch all active budget reservations and encumbrances."""
+    _verify_auth(x_sentinel_token)
+    # Using the approval_manager's integrated DB
+    return {"holds": approval_manager.db.get_holds_by_status("active")}
+
+
+@app.get("/api/admin/holds/history")
+def admin_get_hold_history(limit: int = 100, x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch history of terminal hold states (settled/released/expired)."""
+    _verify_auth(x_sentinel_token)
+    from src.governance.db import SentinelDB
+    db = SentinelDB()
+    # Union of terminal states
+    results = []
+    for status in ["settled", "released", "expired"]:
+        results.extend(db.get_holds_by_status(status, limit=limit))
+    # Sort by created_at desc
+    results.sort(key=lambda x: x["created_at"], reverse=True)
+    return {"history": results[:limit]}
+
+
+@app.get("/api/admin/integrity/exceptions")
+def admin_get_integrity_exceptions(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch data on budget shortfalls and integrity violations."""
+    _verify_auth(x_sentinel_token)
+    from src.ledger.ledger import INTEGRITY_LOG, iter_accounting_events
+    
+    events = []
+    # 1. Integrity Violations (State Machine failures)
+    if INTEGRITY_LOG.exists():
+        with open(INTEGRITY_LOG, "r") as f:
+            for line in f:
+                if line.strip():
+                    events.append(json.loads(line))
+                    
+    # 2. Authoritative Budget Shortfalls from Ledger
+    for event in iter_accounting_events():
+        if event.get("event_type") == "budget_shortfall":
+            events.append(event)
+            
+    # Sort by timestamp desc
+    events.sort(key=lambda x: x.get("timestamp", x.get("_written_at", "")), reverse=True)
+    return {"events": events}
+
+
+@app.post("/api/admin/holds/{hold_id}/resolve")
+def admin_resolve_hold(
+    hold_id: str, 
+    resolution_mode: str = Query(...), 
+    audit_reason: str = Query(...),
+    operator_id: str = Query("admin"),
+    x_sentinel_token: Optional[str] = Header(default=None)
+):
+    """Authoritatively resolve a clamped hold (failed_shortfall)."""
+    _verify_auth(x_sentinel_token)
+    from src.ledger.holds import HoldManager
+    hm = HoldManager()
+    
+    # We need the wallet_id for the hold
+    hold_record = hm.db.get_hold(hold_id)
+    if not hold_record:
+        raise HTTPException(status_code=404, detail="Hold not found")
+        
+    wallet_id = hold_record["wallet_id"]
+    
+    success = hm.resolve_clamped_hold(
+        hold_id=hold_id,
+        wallet_id=wallet_id,
+        resolution_mode=resolution_mode,
+        audit_reason=audit_reason,
+        operator_id=operator_id
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to resolve hold. Check mode compatibility.")
+        
+    return {"status": "success", "hold_id": hold_id, "mode": resolution_mode}
+
+
+@app.get("/api/admin/analytics/spend")
+def admin_get_spend_analytics(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch current spend summary for all budget nodes."""
+    _verify_auth(x_sentinel_token)
+    return analytics_aggregator.get_current_spend_summary()
+
+
+@app.get("/api/admin/analytics/governance")
+def admin_get_governance_analytics(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch pilot governance KPIs (human save rate, overrides, etc)."""
+    _verify_auth(x_sentinel_token)
+    return analytics_aggregator.get_governance_report()
+
+
+@app.get("/api/admin/wallets/hierarchy")
+def admin_get_wallet_hierarchy(x_sentinel_token: Optional[str] = Header(default=None)):
+    """Fetch structured Org -> Project -> Agent hierarchy with anomaly flagging."""
+    _verify_auth(x_sentinel_token)
+    from src.ledger.ledger import read_wallets
+    from src.ledger.holds import HoldManager
+    
+    wallets = read_wallets()
+    hm = HoldManager()
+    
+    # 1. Fetch all clamped holds to identify 'flagged' wallets
+    clamped_holds = hm.db.get_holds_by_status("failed_shortfall")
+    flagged_wallets = {h["wallet_id"] for h in clamped_holds}
+    
+    # 2. Group by parent
+    hierarchy = {} # parent_id -> list of children
+    roots = []
+    
+    for w_id, w_data in wallets.items():
+        parent = w_data.get("parent_wallet_id")
+        if not parent:
+            roots.append(w_id)
+        else:
+            if parent not in hierarchy:
+                hierarchy[parent] = []
+            hierarchy[parent].append(w_id)
+            
+    def _build_node(w_id):
+        data = wallets[w_id]
+        children_nodes = [_build_node(child) for child in hierarchy.get(w_id, [])]
+        
+        # A node is flagged if itself or any child has failed_shortfall holds
+        is_flagged = w_id in flagged_wallets or any(c["is_flagged"] for c in children_nodes)
+        
+        return {
+            "id": w_id,
+            "name": data.get("name", w_id),
+            "balance_jul": data.get("balance_jul", 0.0),
+            "held_jul": data.get("held_jul", 0.0),
+            "available_jul": round(data.get("balance_jul", 0.0) - data.get("held_jul", 0.0), 6),
+            "is_flagged": is_flagged,
+            "children": children_nodes
+        }
+        
+    return {"hierarchy": [_build_node(root) for root in roots]}
 
 
 if __name__ == "__main__":

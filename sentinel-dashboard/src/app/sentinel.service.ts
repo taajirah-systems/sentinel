@@ -53,12 +53,37 @@ export class SentinelService {
     }
 
     getAuditLogs(): Observable<AuditLog[]> {
-        return this.http.get<AuditLog[]>(`${this.apiUrl}/logs`, { headers: this.getHeaders() }).pipe(
-            map(logs => logs.map(log => ({
-                ...log,
-                timestamp: this.formatDate(log.timestamp)
-            }))),
+        return this.http.get<{ requests: any[] }>(`${this.apiUrl}/api/admin/governance/requests`, { headers: this.getHeaders() }).pipe(
+            map(res => res.requests),
             catchError(() => of([]))
+        );
+    }
+
+    getActiveHolds(): Observable<any[]> {
+        return this.http.get<{ holds: any[] }>(`${this.apiUrl}/api/admin/holds/active`, { headers: this.getHeaders() }).pipe(
+            map(res => res.holds),
+            catchError(() => of([]))
+        );
+    }
+
+    getHoldHistory(): Observable<any[]> {
+        return this.http.get<{ history: any[] }>(`${this.apiUrl}/api/admin/holds/history`, { headers: this.getHeaders() }).pipe(
+            map(res => res.history),
+            catchError(() => of([]))
+        );
+    }
+
+    getComplianceShortfalls(): Observable<any[]> {
+        return this.http.get<{ events: any[] }>(`${this.apiUrl}/api/admin/compliance/shortfalls`, { headers: this.getHeaders() }).pipe(
+            map(res => res.events),
+            catchError(() => of([]))
+        );
+    }
+
+    getWallets(): Observable<any> {
+        return this.http.get<{ wallets: any }>(`${this.apiUrl}/api/admin/wallets`, { headers: this.getHeaders() }).pipe(
+            map(res => res.wallets),
+            catchError(() => of({}))
         );
     }
 

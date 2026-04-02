@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""
+Sentinel JOULE Command Line Interface
+Exposes the Wallet and Ledger functions to the OpenClaw Agent sandbox.
+"""
+
+import sys
+import argparse
+import json
+from pathlib import Path
+
+# Add sentinel to pythonpath
+sentinel_dir = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(sentinel_dir))
+
+from src.token.wallet import get_balance, request_withdrawal
+
+def cli_balance(args):
+    """Fetch the JOULE balance for a given recipient (phone number)."""
+    try:
+        data = get_balance(args.recipient)
+        # Format explicitly for the AI to read easily
+        print(f"JOULE ACCOUNT SUMMARY FOR {args.recipient}:")
+        print(f"- Balance: {data['balance_jul']:.4f} JOULE")
+        print(f"- Current Cash Value: R {data['balance_zar_equiv']:.2f} ZAR")
+        print(f"- Lifetime Earned: {data['lifetime_earned_jul']:.4f} JOULE")
+        print(f"- Exchange Rate: 1 JOULE = R {data['jul_to_zar_rate']:.4f}")
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def cli_withdraw(args):
+    """Request a withdrawal from a user's wallet."""
+    # Enforce basic security check:
+    # We require the AI to specify who initiated it (which should be the WhatsApp chat ID)
+    try:
+        tx = request_withdrawal(
+            recipient=args.recipient,
+            amount_jul=float(args.amount),
+            payout_method=args.method,
+            payout_ref=args.account,
+            requested_by=args.recipient  # Assuming they can only request for themselves at this level
+        )
+        print("WITHDRAWAL REQUEST PENDING APPROVAL:")
+        print(f"- Transaction ID: {tx['id']}")
+        print(f"- Amount: {tx['amount_jul']} JOULE -> R {tx['amount_zar']} ZAR")
+        print(f"- Method: {tx['to']}")
+        print(f"- Status: {tx['status']}")
+        print("\nPlease inform the user that their request is pending admin approval and provide them with their Transaction ID.")
+    except ValueError as ve:
+        # Expected business logic errors (like insufficient funds)
+        print(f"TRANSACTION DECLINED: {ve}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"SYSTEM ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def main():
+    parser = argparse.ArgumentParser(description="Sentinel JOULE CLI for OpenClaw")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Balance Command
+    parser_bal = subparsers.add_parser("balance", help="Check JOULE wallet balance")
+    parser_bal.add_argument("recipient", help="The identifier (e.g., +27123456789)")
+    parser_bal.set_defaults(func=cli_balance)
+
+    # Withdraw Command
+    parser_with = subparsers.add_parser("withdraw", help="Request a Fiat withdrawal")
+    parser_with.add_argument("recipient", help="Wallet sending the funds")
+    parser_with.add_argument("amount", type=float, help="Amount of JOULE")
+    parser_with.add_argument("method", help="Payout method (e.g., FNB, PayFast, Crypto)")
+    parser_with.add_argument("account", help="Account number / Wallet address")
+    parser_with.set_defaults(func=cli_withdraw)
+
+    args = parser.parse_args()
+    args.func(args)
+
+if __name__ == "__main__":
+    main()

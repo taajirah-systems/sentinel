@@ -44,16 +44,16 @@ echo "🩹 Starting Autonomic Healing Monitor..."
 python -u scripts/monitoring/autonomic.py > /tmp/sentinel_healing.log 2>&1 &
 MONITOR_HEAL_PID=$!
 
-# 6. Start OpenClaw Gateway (Morpheus Edition)
-echo "🦞 Starting OpenClaw Gateway..."
-openclaw gateway --force > /tmp/openclaw.log 2>&1 &
-OPENCLAW_PID=$!
+# 6. OpenClaw Gateway — DISABLED (dmPolicy set to disabled; auto-replies stopped)
+# openclaw gateway --force > /tmp/openclaw.log 2>&1 &
+# OPENCLAW_PID=$!
+OPENCLAW_PID=""
 
 echo "✅ Sentinel Security Layers are active."
-echo "   (OpenClaw Gateway is running on port 18789)"
+echo "   (OpenClaw Gateway is DISABLED — WhatsApp auto-replies are off)"
 
 # Cleanup on exit
-trap 'kill $SERVER_PID $MONITOR_PID $MONITOR_MODEL_PID $MONITOR_HEAL_PID $OPENCLAW_PID 2>/dev/null' EXIT
+trap 'kill $SERVER_PID $MONITOR_PID $MONITOR_MODEL_PID $MONITOR_HEAL_PID 2>/dev/null' EXIT
 
 # Keep script alive to maintain background monitors
 wait
